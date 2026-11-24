@@ -10,10 +10,10 @@ import SwiftData
 @MainActor
 @Observable
 public final class SyncEngine {
-    public private(set) var isPulling = false
-    public private(set) var isPushing = false
-    public private(set) var lastErrorMessage: String?
-    public private(set) var lastPushAt: Date?
+    public internal(set) var isPulling = false
+    public internal(set) var isPushing = false
+    public internal(set) var lastErrorMessage: String?
+    public internal(set) var lastPushAt: Date?
 
     public var isSyncing: Bool { isPulling || isPushing }
 
