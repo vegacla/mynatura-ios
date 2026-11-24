@@ -21,10 +21,16 @@ public struct ReceivingScreen: View {
         NavigationStack {
             let filtered = orders.filter { searchText.isEmpty || $0.orderNumber.localizedCaseInsensitiveContains(searchText) }
             List(filtered) { order in
-                NavigationLink {
-                    NaturaOrderDetailScreen(orderId: order.id, sellerId: sellerId)
-                } label: {
+                NavigationLink(value: ReceivingRoute.order(order.id)) {
                     NaturaOrderRow(order: order)
+                }
+            }
+            // Rutas por valor: cada pantalla se construye solo al navegar (no una por fila).
+            .navigationDestination(for: ReceivingRoute.self) { route in
+                switch route {
+                case .order(let id): NaturaOrderDetailScreen(orderId: id, sellerId: sellerId)
+                case .byLine(let id): ReceiveByLineScreen(orderId: id, sellerId: sellerId)
+                case .byCode(let id): ReceiveByCodeScreen(orderId: id, sellerId: sellerId)
                 }
             }
             .overlay {
@@ -41,6 +47,12 @@ public struct ReceivingScreen: View {
             .syncStatusToolbar(sellerId: sellerId)
         }
     }
+}
+
+enum ReceivingRoute: Hashable {
+    case order(String)
+    case byLine(String)
+    case byCode(String)
 }
 
 struct NaturaOrderRow: View {

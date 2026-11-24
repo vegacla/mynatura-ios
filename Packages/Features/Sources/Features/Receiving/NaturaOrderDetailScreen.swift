@@ -40,15 +40,11 @@ struct NaturaOrderDetailScreen: View {
                 }
 
                 Section {
-                    NavigationLink {
-                        ReceiveByLineScreen(orderId: orderId, sellerId: sellerId)
-                    } label: {
+                    NavigationLink(value: ReceivingRoute.byLine(orderId)) {
                         Label("Recibir por línea", systemImage: "list.bullet.rectangle")
                             .font(.headline).frame(minHeight: 52)
                     }
-                    NavigationLink {
-                        ReceiveByCodeScreen(orderId: orderId, sellerId: sellerId)
-                    } label: {
+                    NavigationLink(value: ReceivingRoute.byCode(orderId)) {
                         Label("Recibir por código", systemImage: "barcode.viewfinder")
                             .font(.headline).frame(minHeight: 52)
                     }
