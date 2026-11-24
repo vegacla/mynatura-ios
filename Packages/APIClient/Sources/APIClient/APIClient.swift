@@ -31,7 +31,7 @@ public final class LiveAPIClient: APIClient {
         guard let base = baseURL(), let url = endpoint.url(relativeTo: base) else { throw .notConfigured }
 
         var headers = ["Accept": "application/json"]
-        if endpoint.body != nil { headers["Content-Type"] = "application/json" }
+        if endpoint.body != nil { headers["Content-Type"] = endpoint.contentType ?? "application/json" }
         if let cookie = CookieJar.header(for: credentials.load()) { headers["Cookie"] = cookie }
         let request = HTTPRequest(method: endpoint.method, url: url, headers: headers, body: endpoint.body)
 

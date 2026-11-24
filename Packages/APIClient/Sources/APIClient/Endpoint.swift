@@ -16,12 +16,15 @@ public struct Endpoint<Response: Decodable & Sendable>: Sendable {
     public var path: String
     public var query: [QueryItem]
     public var body: Data?
+    /// Content-Type del cuerpo; por defecto JSON.
+    public var contentType: String?
 
-    public init(method: HTTPMethod = .get, path: String, query: [QueryItem] = [], body: Data? = nil) {
+    public init(method: HTTPMethod = .get, path: String, query: [QueryItem] = [], body: Data? = nil, contentType: String? = nil) {
         self.method = method
         self.path = path
         self.query = query
         self.body = body
+        self.contentType = contentType
     }
 
     public init(method: HTTPMethod, path: String, json: some Encodable) {
