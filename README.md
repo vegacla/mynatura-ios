@@ -28,7 +28,7 @@ Packages/APIClient/  # cliente HTTP del backend (DTOs, cookie de sesión, errore
 Packages/Persistence/# modelos SwiftData
 Packages/Sync/       # SyncEngine: pull de datasets (y cola offline desde la etapa 4)
 Packages/DesignSystem/ # componentes SwiftUI reutilizables
-Packages/Features/   # pantallas por módulo (Session, Settings, Catalog, …)
+Packages/Features/   # pantallas por módulo (Session, Sales, Catalog, Receiving, Customers, Settings)
 .github/workflows/   # CI: tests + IPA sin firmar
 docs/                # diseño
 ```
