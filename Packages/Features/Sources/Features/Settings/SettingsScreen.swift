@@ -10,17 +10,29 @@ import Sync
 public struct SettingsScreen: View {
     @Environment(SessionStore.self) private var session
     @Environment(SyncEngine.self) private var sync
+    @Query private var mutations: [PendingMutation]
     @State private var confirmingLogout = false
+    private let sellerId: String
 
-    public init() {}
+    public init(sellerId: String) {
+        self.sellerId = sellerId
+        _mutations = Query(filter: #Predicate<PendingMutation> { $0.sellerId == sellerId })
+    }
 
     public var body: some View {
         NavigationStack {
             List {
                 if let current = session.current {
                     SessionSection(current: current)
-                    IssueStrategySection(sellerId: current.sellerId, isOffline: current.isOffline)
-                    DatasetsSection(sellerId: current.sellerId, isOffline: current.isOffline)
+                    OfflineStatusSection(sellerId: sellerId)
+                    IssueStrategySection(sellerId: sellerId, isOffline: !sync.connectivity.isOnline)
+                    NaturaImportSection(sellerId: sellerId)
+                    Section("Historial y reportes") {
+                        NavigationLink("Historial de importaciones") { ImportRunsScreen() }
+                        NavigationLink("Historial de ventas") { SalesHistoryScreen(sellerId: sellerId) }
+                        NavigationLink("Reporte de margen") { MarginReportScreen(sellerId: sellerId) }
+                    }
+                    DatasetsSection(sellerId: sellerId, isOffline: !sync.connectivity.isOnline)
                     Section {
                         Button("Cerrar sesión", role: .destructive) { confirmingLogout = true }
                     }
@@ -30,16 +42,21 @@ public struct SettingsScreen: View {
                     LabeledContent("Bundle", value: AppInfo.bundleIdentifier)
                 }
                 Section {
-                    NavigationLink("Diagnóstico") { DiagnosticsScreen() }
+                    NavigationLink("Diagnóstico") { DiagnosticsScreen(sellerId: sellerId) }
                 }
             }
             .navigationTitle("Ajustes")
+            .syncStatusToolbar(sellerId: sellerId)
             .confirmationDialog("¿Cerrar sesión?", isPresented: $confirmingLogout, titleVisibility: .visible) {
                 Button("Cerrar sesión", role: .destructive) {
                     Task { await session.logout() }
                 }
             } message: {
-                Text("Se borrarán los datos locales de esta cuenta en el iPhone.")
+                if mutations.isEmpty {
+                    Text("Se borrarán los datos locales de esta cuenta en el iPhone.")
+                } else {
+                    Text("Hay \(mutations.count) cambio(s) sin sincronizar que se perderán. Sincroniza antes de salir si puedes.")
+                }
             }
         }
     }
@@ -140,15 +157,15 @@ private struct DatasetsSection: View {
                 DatasetRow(state: state)
             }
             Button {
-                Task { await sync.pullAll(sellerId: sellerId) }
+                Task { await sync.syncNow(sellerId: sellerId) }
             } label: {
                 HStack {
-                    Text("Sincronizar ahora")
+                    Text("Descargar todo")
                     Spacer()
                     if sync.isPulling { ProgressView() }
                 }
             }
-            .disabled(sync.isPulling || isOffline)
+            .disabled(sync.isSyncing || isOffline)
         }
     }
 }
@@ -179,13 +196,16 @@ private struct DatasetRow: View {
     }
 }
 
-/// Pantalla de diagnóstico para depurar sin Xcode (§13.1).
+/// Pantalla de diagnóstico para depurar sin Xcode (§13.1): servidor, logs, cola, último error.
 struct DiagnosticsScreen: View {
     @Environment(SessionStore.self) private var session
+    @Environment(SyncEngine.self) private var sync
     @AppStorage(BackendSettings.key) private var backendURL = ""
     @State private var sample = ""
     @State private var healthResult: String?
     @State private var isChecking = false
+    @State private var logLines: [String] = []
+    let sellerId: String
 
     var body: some View {
         List {
@@ -203,6 +223,29 @@ struct DiagnosticsScreen: View {
                     Text(healthResult).font(.footnote)
                 }
                 LabeledContent("Cookie de sesión", value: session.api.hasSessionCredential ? "Guardada" : "No")
+                LabeledContent("Red", value: sync.connectivity.isOnline ? "Con conexión" : "Sin conexión")
+                if let error = sync.lastErrorMessage {
+                    LabeledContent("Último error", value: error)
+                }
+            }
+            Section {
+                NavigationLink("Cola de mutaciones") { SyncQueueScreen(sellerId: sellerId) }
+            }
+            Section {
+                if logLines.isEmpty {
+                    Text("Sin registros recientes").foregroundStyle(.secondary)
+                } else {
+                    ShareLink("Compartir log", item: logLines.joined(separator: "\n"))
+                    ForEach(Array(logLines.suffix(80).reversed().enumerated()), id: \.offset) { _, line in
+                        Text(line).font(.caption2.monospaced())
+                    }
+                }
+            } header: {
+                HStack {
+                    Text("Log (últimas 6 h)")
+                    Spacer()
+                    Button("Actualizar") { logLines = AppLog.recentEntries() }.font(.caption)
+                }
             }
             Section("Prueba de reglas (Core)") {
                 TextField("Código EAN o SKU", text: $sample)
@@ -213,6 +256,7 @@ struct DiagnosticsScreen: View {
             }
         }
         .navigationTitle("Diagnóstico")
+        .task { logLines = AppLog.recentEntries() }
     }
 
     private func checkHealth() {

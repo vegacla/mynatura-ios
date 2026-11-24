@@ -1,42 +1,43 @@
 import Features
+import Persistence
+import SwiftData
 import SwiftUI
 
-/// Navegación raíz: 5 pestañas (§3).
+/// Navegación raíz: 5 pestañas (§3). Ajustes muestra badge con mutaciones fallidas.
 struct RootTabView: View {
+    @Environment(AppRouter.self) private var router
+    @Query private var mutations: [PendingMutation]
     let sellerId: String
 
+    init(sellerId: String) {
+        self.sellerId = sellerId
+        _mutations = Query(filter: #Predicate<PendingMutation> { $0.sellerId == sellerId })
+    }
+
     var body: some View {
-        TabView {
-            PlaceholderScreen(title: "Vender", systemImage: "cart",
-                              message: "Venta rápida con carro y escáner EAN.")
+        @Bindable var router = router
+        let failed = mutations.filter { $0.statusRaw == "failed" }.count
+        TabView(selection: $router.tab) {
+            SellScreen(sellerId: sellerId)
                 .tabItem { Label("Vender", systemImage: "cart") }
+                .tag(AppTab.sell)
 
             ProductsScreen(sellerId: sellerId)
                 .tabItem { Label("Productos", systemImage: "shippingbox") }
+                .tag(AppTab.products)
 
-            PlaceholderScreen(title: "Recepción", systemImage: "tray.and.arrow.down",
-                              message: "Pedidos Natura entregados: por línea, por código y OCR.")
+            ReceivingScreen(sellerId: sellerId)
                 .tabItem { Label("Recepción", systemImage: "tray.and.arrow.down") }
+                .tag(AppTab.receiving)
 
-            PlaceholderScreen(title: "Clientes", systemImage: "person.2",
-                              message: "Clientes y pedidos por ciclo.")
+            CustomersHomeScreen(sellerId: sellerId)
                 .tabItem { Label("Clientes", systemImage: "person.2") }
+                .tag(AppTab.customers)
 
-            SettingsScreen()
+            SettingsScreen(sellerId: sellerId)
                 .tabItem { Label("Ajustes", systemImage: "gearshape") }
-        }
-    }
-}
-
-struct PlaceholderScreen: View {
-    let title: String
-    let systemImage: String
-    let message: String
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(title, systemImage: systemImage, description: Text(message))
-                .navigationTitle(title)
+                .badge(failed)
+                .tag(AppTab.settings)
         }
     }
 }

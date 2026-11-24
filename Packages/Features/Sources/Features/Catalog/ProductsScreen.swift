@@ -15,6 +15,8 @@ public struct ProductsScreen: View {
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
     @State private var searchText = ""
+    @State private var creating = false
+    @State private var path = NavigationPath()
     private let sellerId: String
 
     public init(sellerId: String) {
@@ -34,7 +36,7 @@ public struct ProductsScreen: View {
     }
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             let stockById = stockById
             List(filtered) { product in
                 NavigationLink(value: CatalogRoute.product(id: product.id)) {
@@ -56,12 +58,22 @@ public struct ProductsScreen: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Nombre, SKU o EAN")
-            .refreshable { await sync.pullAll(sellerId: sellerId) }
+            .refreshable { await sync.syncNow(sellerId: sellerId) }
             .navigationTitle("Productos")
+            .syncStatusToolbar(sellerId: sellerId)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { creating = true } label: { Image(systemName: "plus") }
+                        .accessibilityLabel("Producto nuevo")
+                }
+            }
+            .sheet(isPresented: $creating) {
+                QuickProductSheet(sellerId: sellerId) { id in path.append(CatalogRoute.product(id: id)) }
+            }
             .navigationDestination(for: CatalogRoute.self) { route in
                 switch route {
                 case .product(let id):
-                    ProductDetailScreen(productId: id)
+                    ProductDetailScreen(productId: id, sellerId: sellerId)
                 }
             }
         }

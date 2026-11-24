@@ -11,6 +11,7 @@ struct MyNaturaApp: App {
     private let container: ModelContainer
     @State private var session: SessionStore
     @State private var sync: SyncEngine
+    @State private var router = AppRouter()
 
     init() {
         let container: ModelContainer
@@ -38,7 +39,13 @@ struct MyNaturaApp: App {
             AppRootView()
                 .environment(session)
                 .environment(sync)
+                .environment(router)
         }
         .modelContainer(container)
+        .backgroundTask(.appRefresh(BackgroundRefresh.identifier)) { [session, sync] in
+            BackgroundRefresh.schedule()
+            let sellerId = await MainActor.run { sync.connectivity.isOnline ? session.current?.sellerId : nil }
+            if let sellerId { await sync.syncNow(sellerId: sellerId) }
+        }
     }
 }

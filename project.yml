@@ -35,7 +35,7 @@ targets:
       properties:
         CFBundleDisplayName: MyNatura
         CFBundleDevelopmentRegion: es
-        CFBundleShortVersionString: "0.3.0"
+        CFBundleShortVersionString: "1.0.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -45,6 +45,10 @@ targets:
         NSLocalNetworkUsageDescription: "MyNatura se conecta al servidor de desarrollo en tu red local."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - cl.mynatura.app.refresh
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cl.mynatura.app
