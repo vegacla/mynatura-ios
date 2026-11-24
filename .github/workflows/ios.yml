@@ -97,6 +97,7 @@ jobs:
         run: xcodegen generate
 
       # Simuladores web (Appetize, VibeView…) no aceptan .ipa: necesitan un .app de simulador en .zip.
+      # Firma ad-hoc ("-"): sin firma el simulador niega Keychain y la sesión no se guarda.
       # ONLY_ACTIVE_ARCH=NO ⇒ incluye arm64 y x86_64 para servir en cualquier host.
       - name: Build for iOS Simulator
         run: |
@@ -107,7 +108,7 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build/sim \
-            ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
             | tee sim-build-log.txt | grep -E "error:|BUILD" || true
           test -d build/sim/Build/Products/Release-iphonesimulator/MyNatura.app
 
