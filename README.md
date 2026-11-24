@@ -23,7 +23,9 @@ Con Apple ID gratis la app expira a los 7 días: volver a instalar con Sideloadl
 ```text
 project.yml          # XcodeGen (el .xcodeproj se genera en CI, no se versiona)
 MyNatura/            # target app SwiftUI
-Packages/Core/       # reglas de dominio puras (dinero, normalizadores, precios, recepción, stock)
+Packages/Core/       # reglas de dominio puras (dinero, normalizadores, precios, recepción, stock, sesión)
+Packages/APIClient/  # cliente HTTP del backend (DTOs, cookie de sesión, errores) — tests en Linux
+Packages/Persistence/# modelos SwiftData
 .github/workflows/   # CI: tests + IPA sin firmar
 docs/                # diseño
 ```
@@ -32,8 +34,8 @@ docs/                # diseño
 
 ```powershell
 winget install Swift.Toolchain
-cd Packages/Core
-swift test
+cd Packages/Core; swift test
+cd ../APIClient; swift test
 ```
 
 Bundle ID: `cl.mynatura.app` (no cambiarlo: cambiarlo instala una app distinta y pierde los datos).

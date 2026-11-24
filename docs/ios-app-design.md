@@ -388,6 +388,16 @@ Se toma el "north star" de `docs/plan/refactor-plan.md` (*"la app debe sentirse 
 
 Las correcciones de backend del §9 (1–3) deben estar antes del slice 4.
 
+### Estado
+
+| Etapa | Estado |
+|---|---|
+| 0 · Fundación | ✅ Completada (2026‑11‑23): XcodeGen, CI verde (18 tests de `Core` + IPA sin firmar), shell de 5 tabs + Diagnóstico. Pendiente: confirmar instalación con Sideloadly en el iPhone. |
+| 1 · Sesión | 🔄 Implementada (2026‑11‑23), falta validar en el iPhone: paquetes `APIClient` (transporte HTTP propio, cookie de sesión guardada en Keychain porque la del backend no tiene `Expires` y iOS la descartaría, mapeo de errores, tests en Linux) y `Persistence` (SwiftData, `SessionSummary`). Login con URL de servidor configurable, restauración online/offline (`SessionRestorePolicy` en `Core`), revalidación al volver a foreground, logout que borra datos locales, Diagnóstico con "Probar conexión" (`GET /health`). Las pantallas viven por ahora en `MyNatura/Features/` (target app); se moverán a `Packages/Features` cuando crezcan. |
+| 2 · Catálogo + stock | ⏭️ Siguiente |
+| 3–10 | Pendientes |
+| Backend §9 (1–3) | Pendiente — se hace en el repo `mynatura` antes de la etapa 4 |
+
 ---
 
 ## 12. Riesgos

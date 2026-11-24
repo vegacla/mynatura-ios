@@ -19,8 +19,11 @@ jobs:
     container: swift:6.1
     steps:
       - uses: actions/checkout@v4
-      - name: swift test
+      - name: swift test (Core)
         working-directory: Packages/Core
+        run: swift test
+      - name: swift test (APIClient)
+        working-directory: Packages/APIClient
         run: swift test
 
   build-ipa:
