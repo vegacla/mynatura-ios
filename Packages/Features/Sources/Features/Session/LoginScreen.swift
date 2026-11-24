@@ -1,7 +1,7 @@
 import APIClient
 import SwiftUI
 
-struct LoginScreen: View {
+public struct LoginScreen: View {
     @Environment(SessionStore.self) private var session
     @AppStorage(BackendSettings.key) private var backendURL = ""
 
@@ -13,7 +13,9 @@ struct LoginScreen: View {
 
     private enum Field { case code, password }
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         NavigationStack {
             Form {
                 Section {

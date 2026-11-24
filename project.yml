@@ -11,6 +11,12 @@ packages:
     path: Packages/APIClient
   Persistence:
     path: Packages/Persistence
+  Sync:
+    path: Packages/Sync
+  DesignSystem:
+    path: Packages/DesignSystem
+  Features:
+    path: Packages/Features
 targets:
   MyNatura:
     type: application
@@ -21,12 +27,15 @@ targets:
       - package: Core
       - package: APIClient
       - package: Persistence
+      - package: Sync
+      - package: DesignSystem
+      - package: Features
     info:
       path: MyNatura/Resources/Info.plist
       properties:
         CFBundleDisplayName: MyNatura
         CFBundleDevelopmentRegion: es
-        CFBundleShortVersionString: "0.2.0"
+        CFBundleShortVersionString: "0.3.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:

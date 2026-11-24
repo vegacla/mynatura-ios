@@ -7,42 +7,42 @@ import Persistence
 /// Estado de sesión de la app (§4.1): login, restauración online/offline y logout.
 @MainActor
 @Observable
-final class SessionStore {
-    struct CurrentSession: Equatable {
-        let sellerId: String
-        let customerCode: String
-        let displayName: String
+public final class SessionStore {
+    public struct CurrentSession: Equatable, Sendable {
+        public let sellerId: String
+        public let customerCode: String
+        public let displayName: String
         /// Entró con el `SessionSummary` local porque el backend no respondió.
-        var isOffline: Bool
+        public var isOffline: Bool
     }
 
-    enum Phase: Equatable {
+    public enum Phase: Equatable, Sendable {
         case restoring
         case signedOut
         case signedIn(CurrentSession)
     }
 
-    private(set) var phase: Phase = .restoring
+    public private(set) var phase: Phase = .restoring
     /// Último código usado, para precargar el login.
-    private(set) var lastCustomerCode = ""
-    private(set) var isRevalidating = false
+    public private(set) var lastCustomerCode = ""
+    public private(set) var isRevalidating = false
 
-    let api: any APIClient
+    public let api: any APIClient
     private let repository: SessionRepository
 
-    init(api: any APIClient, repository: SessionRepository) {
+    public init(api: any APIClient, repository: SessionRepository) {
         self.api = api
         self.repository = repository
     }
 
-    var current: CurrentSession? {
+    public var current: CurrentSession? {
         if case .signedIn(let session) = phase { return session }
         return nil
     }
 
     // MARK: - Restaurar
 
-    func restore() async {
+    public func restore() async {
         let cached = repository.current()
         if let cached { lastCustomerCode = cached.customerCode }
         let hasCredential = api.hasSessionCredential
@@ -70,7 +70,7 @@ final class SessionStore {
     }
 
     /// Reintenta validar contra el backend si se entró offline (al volver a foreground o a pedido).
-    func revalidateIfOffline() async {
+    public func revalidateIfOffline() async {
         guard let session = current, session.isOffline, !isRevalidating else { return }
         isRevalidating = true
         defer { isRevalidating = false }
@@ -86,7 +86,7 @@ final class SessionStore {
     }
 
     /// Llamar cuando cualquier request devuelva 401.
-    func handleUnauthorized() {
+    public func handleUnauthorized() {
         api.clearSessionCredential()
         phase = .signedOut
     }
@@ -104,7 +104,7 @@ final class SessionStore {
     // MARK: - Login / logout
 
     /// Devuelve un mensaje de error para la UI, o nil si entró.
-    func login(customerCode: String, password: String) async -> String? {
+    public func login(customerCode: String, password: String) async -> String? {
         let code = LoginForm.normalizedCustomerCode(customerCode)
         do throws(LoginFormError) {
             try LoginForm.validate(customerCode: code, password: password)
@@ -123,7 +123,7 @@ final class SessionStore {
     }
 
     /// Cierra sesión: avisa al backend si hay red y borra cookie y datos locales de la cuenta.
-    func logout() async {
+    public func logout() async {
         if current?.isOffline == false {
             _ = try? await api.send(.logout)
         }

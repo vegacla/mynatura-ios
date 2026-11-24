@@ -8,7 +8,10 @@ let package = Package(
     products: [
         .library(name: "Persistence", targets: ["Persistence"]),
     ],
+    dependencies: [
+        .package(path: "../Core"),
+    ],
     targets: [
-        .target(name: "Persistence"),
+        .target(name: "Persistence", dependencies: ["Core"]),
     ]
 )

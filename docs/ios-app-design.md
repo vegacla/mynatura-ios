@@ -393,9 +393,10 @@ Las correcciones de backend del §9 (1–3) deben estar antes del slice 4.
 | Etapa | Estado |
 |---|---|
 | 0 · Fundación | ✅ Completada (2026‑11‑23): XcodeGen, CI verde (18 tests de `Core` + IPA sin firmar), shell de 5 tabs + Diagnóstico. Pendiente: confirmar instalación con Sideloadly en el iPhone. |
-| 1 · Sesión | 🔄 Implementada (2026‑11‑23), falta validar en el iPhone: paquetes `APIClient` (transporte HTTP propio, cookie de sesión guardada en Keychain porque la del backend no tiene `Expires` y iOS la descartaría, mapeo de errores, tests en Linux) y `Persistence` (SwiftData, `SessionSummary`). Login con URL de servidor configurable, restauración online/offline (`SessionRestorePolicy` en `Core`), revalidación al volver a foreground, logout que borra datos locales, Diagnóstico con "Probar conexión" (`GET /health`). Las pantallas viven por ahora en `MyNatura/Features/` (target app); se moverán a `Packages/Features` cuando crezcan. |
-| 2 · Catálogo + stock | ⏭️ Siguiente |
-| 3–10 | Pendientes |
+| 1 · Sesión | ✅ Implementada (2026‑11‑23): `APIClient` (transporte propio, cookie de sesión en Keychain porque la del backend no tiene `Expires`, mapeo de errores, tests en Linux), `Persistence` (`SessionSummary`), login con URL de servidor, restauración online/offline (`SessionRestorePolicy` en `Core`), revalidación en foreground, logout que borra datos locales, Diagnóstico con "Probar conexión". |
+| 2 · Catálogo + stock | ✅ Implementada (2026‑11‑23): paquetes `DesignSystem` (StatusBadge, MiniStat, AlertBanner, MoneyText), `Sync` (`SyncEngine.pullAll`: catálogo, stock y ajustes; merge que no pisa entidades pendientes) y `Features` (Session, Settings, Catalog). Modelos `CatalogProduct`, `StockItem`, `SellerSettings`, `DatasetSyncState`. Productos con búsqueda nombre/SKU/EAN (`ProductSearch` en `Core`), detalle de lectura, pull‑to‑refresh. Ajustes: FIFO/LIFO (online) y estado por dataset. |
+| 3 · Venta | ⏭️ Siguiente |
+| 4–10 | Pendientes |
 | Backend §9 (1–3) | Pendiente — se hace en el repo `mynatura` antes de la etapa 4 |
 
 ---

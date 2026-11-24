@@ -22,10 +22,13 @@ Con Apple ID gratis la app expira a los 7 días: volver a instalar con Sideloadl
 
 ```text
 project.yml          # XcodeGen (el .xcodeproj se genera en CI, no se versiona)
-MyNatura/            # target app SwiftUI
+MyNatura/            # target app: @main, TabView raíz, inyección de dependencias
 Packages/Core/       # reglas de dominio puras (dinero, normalizadores, precios, recepción, stock, sesión)
 Packages/APIClient/  # cliente HTTP del backend (DTOs, cookie de sesión, errores) — tests en Linux
 Packages/Persistence/# modelos SwiftData
+Packages/Sync/       # SyncEngine: pull de datasets (y cola offline desde la etapa 4)
+Packages/DesignSystem/ # componentes SwiftUI reutilizables
+Packages/Features/   # pantallas por módulo (Session, Settings, Catalog, …)
 .github/workflows/   # CI: tests + IPA sin firmar
 docs/                # diseño
 ```

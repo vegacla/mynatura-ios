@@ -1,21 +1,14 @@
-import APIClient
+#if canImport(Security)
 import Foundation
 import Security
 
-/// URL del backend elegida por la persona (Login › Servidor o Diagnóstico). Ver §13.5.
-enum BackendSettings {
-    static let key = "backendURL"
-
-    static var url: URL? {
-        BackendURL.parse(UserDefaults.standard.string(forKey: key) ?? "")
-    }
-}
-
 /// Cookie de sesión de la app en Keychain (solo este dispositivo, disponible tras el primer desbloqueo).
 /// Nunca se guardan aquí credenciales de Natura.
-final class KeychainCredentialStore: SessionCredentialStore {
+public final class KeychainCredentialStore: SessionCredentialStore {
     private let service = "cl.mynatura.app.session"
     private let account = "cookies"
+
+    public init() {}
 
     private var baseQuery: [String: Any] {
         [
@@ -25,7 +18,7 @@ final class KeychainCredentialStore: SessionCredentialStore {
         ]
     }
 
-    func load() -> [String: String] {
+    public func load() -> [String: String] {
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -37,7 +30,7 @@ final class KeychainCredentialStore: SessionCredentialStore {
         return cookies
     }
 
-    func save(_ cookies: [String: String]) {
+    public func save(_ cookies: [String: String]) {
         guard !cookies.isEmpty, let data = try? JSONEncoder().encode(cookies) else {
             clear()
             return
@@ -49,7 +42,8 @@ final class KeychainCredentialStore: SessionCredentialStore {
         SecItemAdd(attributes as CFDictionary, nil)
     }
 
-    func clear() {
+    public func clear() {
         SecItemDelete(baseQuery as CFDictionary)
     }
 }
+#endif

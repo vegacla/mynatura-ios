@@ -6,6 +6,10 @@ public enum PersistenceController {
     public static var schema: Schema {
         Schema([
             SessionSummary.self,
+            SellerSettings.self,
+            CatalogProduct.self,
+            StockItem.self,
+            DatasetSyncState.self,
         ])
     }
 
@@ -23,5 +27,16 @@ public enum PersistenceController {
         )
         let configuration = ModelConfiguration(schema: schema, url: directory.appending(path: "MyNatura.store"))
         return try ModelContainer(for: schema, configurations: configuration)
+    }
+
+    /// Borra todos los datos locales (logout). Una sola cuenta activa por dispositivo.
+    @MainActor
+    public static func deleteAllData(in context: ModelContext) throws {
+        try context.delete(model: SessionSummary.self)
+        try context.delete(model: SellerSettings.self)
+        try context.delete(model: CatalogProduct.self)
+        try context.delete(model: StockItem.self)
+        try context.delete(model: DatasetSyncState.self)
+        try context.save()
     }
 }

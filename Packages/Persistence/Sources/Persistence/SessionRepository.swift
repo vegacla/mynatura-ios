@@ -16,12 +16,13 @@ public struct SessionRepository {
         return try? context.fetch(descriptor).first
     }
 
-    /// Guarda la sesión validada y elimina resúmenes de otras cuentas.
+    /// Guarda la sesión validada. Si entra otra cuenta, borra los datos locales de la anterior.
     @discardableResult
     public func upsert(sellerId: String, customerCode: String, displayName: String) throws -> SessionSummary {
-        let all = try context.fetch(FetchDescriptor<SessionSummary>())
-        for other in all where other.sellerId != sellerId {
-            context.delete(other)
+        var all = try context.fetch(FetchDescriptor<SessionSummary>())
+        if all.contains(where: { $0.sellerId != sellerId }) {
+            try PersistenceController.deleteAllData(in: context)
+            all = []
         }
         let summary: SessionSummary
         if let existing = all.first(where: { $0.sellerId == sellerId }) {
@@ -39,7 +40,6 @@ public struct SessionRepository {
 
     /// Logout: borra los datos locales de la cuenta.
     public func deleteAll() throws {
-        try context.delete(model: SessionSummary.self)
-        try context.save()
+        try PersistenceController.deleteAllData(in: context)
     }
 }

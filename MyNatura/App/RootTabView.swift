@@ -1,15 +1,17 @@
+import Features
 import SwiftUI
 
-/// Navegación raíz: 5 pestañas (ver docs/ios-app-design.md §3).
+/// Navegación raíz: 5 pestañas (§3).
 struct RootTabView: View {
+    let sellerId: String
+
     var body: some View {
         TabView {
             PlaceholderScreen(title: "Vender", systemImage: "cart",
                               message: "Venta rápida con carro y escáner EAN.")
                 .tabItem { Label("Vender", systemImage: "cart") }
 
-            PlaceholderScreen(title: "Productos", systemImage: "shippingbox",
-                              message: "Catálogo visible, EAN, conciliación y kardex.")
+            ProductsScreen(sellerId: sellerId)
                 .tabItem { Label("Productos", systemImage: "shippingbox") }
 
             PlaceholderScreen(title: "Recepción", systemImage: "tray.and.arrow.down",
