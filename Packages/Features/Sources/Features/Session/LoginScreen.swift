@@ -68,7 +68,11 @@ public struct LoginScreen: View {
             }
             .navigationTitle("MyNatura")
             .onAppear {
+                let dev = DevLoginDefaults.current
+                if backendURL.isEmpty, let url = dev.serverURL { backendURL = url }
                 if customerCode.isEmpty { customerCode = session.lastCustomerCode }
+                if customerCode.isEmpty, let code = dev.customerCode { customerCode = code }
+                if password.isEmpty, let devPassword = dev.password { password = devPassword }
                 focus = customerCode.isEmpty ? .code : .password
             }
         }

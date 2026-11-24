@@ -87,6 +87,10 @@ jobs:
     env:
       APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
       APPETIZE_APP_ID: ${{ vars.APPETIZE_APP_ID }}
+      # Prellenado del login en el build de simulador (opcional; ver README).
+      MN_DEV_SERVER_URL: ${{ vars.MN_DEV_SERVER_URL }}
+      MN_DEV_CUSTOMER_CODE: ${{ vars.MN_DEV_CUSTOMER_CODE }}
+      MN_DEV_PASSWORD: ${{ secrets.MN_DEV_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -109,6 +113,7 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build/sim \
             ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+            MN_DEV_SERVER_URL="$MN_DEV_SERVER_URL" MN_DEV_CUSTOMER_CODE="$MN_DEV_CUSTOMER_CODE" MN_DEV_PASSWORD="$MN_DEV_PASSWORD" \
             | tee sim-build-log.txt | grep -E "error:|BUILD" || true
           test -d build/sim/Build/Products/Release-iphonesimulator/MyNatura.app
 

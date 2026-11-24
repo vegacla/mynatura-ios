@@ -30,6 +30,11 @@ Súbelo en [appetize.io/upload](https://appetize.io/upload) (o en otro servicio 
 Subida automática opcional: crea el secret `APPETIZE_API_TOKEN` en GitHub (Settings › Secrets › Actions); tras la primera subida,
 guarda el `publicKey` que imprime el job en la variable `APPETIZE_APP_ID` para que los siguientes builds actualicen la misma app.
 
+Login prellenado en el build de simulador (opcional): define en GitHub (Settings › Secrets and variables › Actions)
+las variables `MN_DEV_SERVER_URL` (URL del túnel) y `MN_DEV_CUSTOMER_CODE`, y el secret `MN_DEV_PASSWORD`
+(contraseña de MyNatura, nunca la de Natura). Si cambia la URL del túnel: `gh variable set MN_DEV_SERVER_URL --body <url>` y relanzar el build.
+El IPA no lleva estos valores.
+
 Limitaciones: sin cámara (escáner EAN y foto de boleta no disponibles; sí "Elegir foto"), y el simulador corre en la nube, así que
 el backend debe estar en una URL pública HTTPS (p. ej. `cloudflared tunnel --url http://localhost:3000`), no en la IP de la red local.
 

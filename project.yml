@@ -49,6 +49,11 @@ targets:
           - fetch
         BGTaskSchedulerPermittedIdentifiers:
           - cl.mynatura.app.refresh
+        # Prellenado del login solo para el build de simulador (Appetize). Vacíos por defecto;
+        # CI los llena desde variables/secrets del repo, nunca desde el código.
+        MNDevServerURL: $(MN_DEV_SERVER_URL)
+        MNDevCustomerCode: $(MN_DEV_CUSTOMER_CODE)
+        MNDevPassword: $(MN_DEV_PASSWORD)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cl.mynatura.app
