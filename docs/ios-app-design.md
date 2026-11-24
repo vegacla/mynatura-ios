@@ -404,7 +404,7 @@ Las correcciones de backend del §9 (1–3) deben estar antes del slice 4.
 | 9 · Pulido | ✅ Implementada: "Revisar venta" (editar cantidades y reenviar con el mismo `clientMutationId`, o descartar devolviendo stock), `BGAppRefreshTask` (`cl.mynatura.app.refresh`), Diagnóstico con log `OSLogStore` compartible y cola de mutaciones, etiquetas de accesibilidad. |
 | 10 · Siguiente | ✅ Implementada: convertir pedido de cliente en venta (carga el carro y lo marca Cumplido al registrar), historial de compras por cliente, reporte de margen por periodo y producto. |
 | Validación en iPhone | ⏳ Pendiente: ninguna etapa se ha probado aún en el dispositivo (solo CI: tests de `Core`/`APIClient` en Linux + IPA). |
-| Backend §9 (1–3) | Pendiente — se hace en el repo `mynatura`. Mientras tanto: §9.1 se mitiga en el cliente (venta duplicada = éxito); §9.3 se cubre con remapeo de IDs; §9.2 (idempotencia del resto) sigue siendo un riesgo de duplicado si se pierde una respuesta. |
+| Backend §9 | ✅ (2026‑11‑24, repo `mynatura`, rama local `feat/ios-idempotency` sin push): §9.1 una venta con `clientMutationId` repetido devuelve la venta existente (también si dos envíos chocan en la restricción única); §9.2 cabecera `Idempotency-Key` + tabla `client_mutations` (RLS) en conciliaciones, clientes, pedidos de clientes, EAN, creación rápida y recepción de línea — la app envía el id de la mutación. Verificado con Postgres temporal + HTTP. §9.3 descartado: lo cubre el remapeo de IDs (§7.6). §9.5 mitigado en la app con timeout de 10 min para importar y 3 min para OCR. Pendiente: aplicar la migración (`npm run db:migrate`). |
 
 ---
 

@@ -99,10 +99,12 @@ extension SyncEngine {
 
     private func execute(_ mutation: PendingMutation, type: MutationType, sellerId: String) async -> Result<Void, APIError> {
         let data = mutation.payload
+        // Idempotency-Key = id de la mutación (§9.2): un reintento tras perder la respuesta no duplica.
+        let key = mutation.id.uuidString.lowercased()
         switch type {
         case .saleCreate:
             guard let input = PayloadCoding.decode(CreateSaleInputDTO.self, from: data) else { return .failure(.decoding("payload")) }
-            switch await fetch(.createSale(input)) {
+            switch await fetch(Endpoint<CreateSaleResponseDTO>.createSale(input).idempotent(key)) {
             case .success(let response):
                 applySaleCreated(response.sale, sellerId: sellerId)
                 return .success(())
@@ -115,50 +117,50 @@ extension SyncEngine {
 
         case .inventoryReconciliationCreate:
             guard let input = PayloadCoding.decode(CreateReconciliationInputDTO.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.createReconciliation(input)).map { _ in () }
+            return await fetch(Endpoint<ReconciliationResponseDTO>.createReconciliation(input).idempotent(key)).map { _ in () }
 
         case .catalogBarcodeAdd:
             guard let payload = PayloadCoding.decode(BarcodePayload.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.addBarcode(sellerProductId: payload.sellerProductId, ean: payload.ean)).map { response in
+            return await fetch(Endpoint<CatalogProductResponseDTO>.addBarcode(sellerProductId: payload.sellerProductId, ean: payload.ean).idempotent(key)).map { response in
                 self.applyCatalogProduct(response.product, sellerId: sellerId, replacingLocalId: nil)
             }
 
         case .catalogProductQuick:
             guard let payload = PayloadCoding.decode(QuickProductPayload.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.quickProduct(naturaSku: payload.naturaSku, name: payload.name)).map { response in
+            return await fetch(Endpoint<CatalogProductResponseDTO>.quickProduct(naturaSku: payload.naturaSku, name: payload.name).idempotent(key)).map { response in
                 self.applyCatalogProduct(response.product, sellerId: sellerId, replacingLocalId: payload.localId)
             }
 
         case .receivingLineConfirm:
             guard let payload = PayloadCoding.decode(ReceivingLinePayload.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.updateNaturaOrderLine(orderId: payload.orderId, lineId: payload.lineId, input: payload.input)).map { response in
+            return await fetch(Endpoint<NaturaOrderDetailResponseDTO>.updateNaturaOrderLine(orderId: payload.orderId, lineId: payload.lineId, input: payload.input).idempotent(key)).map { response in
                 if let line = self.naturaLine(id: payload.lineId) { line.syncState = .synced }
                 self.applyNaturaOrderDetail(response.order, sellerId: sellerId)
             }
 
         case .customerCreate:
             guard let payload = PayloadCoding.decode(CustomerCreatePayload.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.createCustomer(payload.input)).map { response in
+            return await fetch(Endpoint<CustomerResponseDTO>.createCustomer(payload.input).idempotent(key)).map { response in
                 self.remapLocalID(payload.localId, to: response.customer.id, sellerId: sellerId)
                 self.applyCustomer(response.customer, sellerId: sellerId)
             }
 
         case .customerUpdate:
             guard let payload = PayloadCoding.decode(CustomerUpdatePayload.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.updateCustomer(id: payload.customerId, payload.input)).map { response in
+            return await fetch(Endpoint<CustomerResponseDTO>.updateCustomer(id: payload.customerId, payload.input).idempotent(key)).map { response in
                 self.applyCustomer(response.customer, sellerId: sellerId)
             }
 
         case .customerOrderCreate:
             guard let payload = PayloadCoding.decode(CustomerOrderPayload.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.createCustomerOrder(payload.input)).map { response in
+            return await fetch(Endpoint<CustomerOrderDetailResponseDTO>.createCustomerOrder(payload.input).idempotent(key)).map { response in
                 self.remapLocalID(payload.orderId, to: response.order.order.id, sellerId: sellerId)
                 self.applyCustomerOrderDetail(response.order, sellerId: sellerId)
             }
 
         case .customerOrderUpdate:
             guard let payload = PayloadCoding.decode(CustomerOrderPayload.self, from: data) else { return .failure(.decoding("payload")) }
-            return await fetch(.updateCustomerOrder(id: payload.orderId, payload.input)).map { response in
+            return await fetch(Endpoint<CustomerOrderDetailResponseDTO>.updateCustomerOrder(id: payload.orderId, payload.input).idempotent(key)).map { response in
                 self.applyCustomerOrderDetail(response.order, sellerId: sellerId)
             }
         }

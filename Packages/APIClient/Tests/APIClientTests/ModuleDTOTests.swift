@@ -66,6 +66,18 @@ struct ModuleDTOTests {
         #expect(text.hasSuffix("\r\n--XX--\r\n"))
     }
 
+    @Test func idempotencyKeyAndTimeoutAreSent() async throws {
+        let transport = FakeTransport([json(201, #"{"customer":{"id":"c1","displayName":"Ana","rut":null,"phone":null,"notes":null,"createdAt":"2026-03-01T10:00:00Z","updatedAt":"2026-03-01T10:00:00Z"}}"#)])
+        let client = LiveAPIClient(baseURL: { baseURL }, transport: transport, credentials: InMemoryCredentialStore())
+        _ = try await client.send(Endpoint<CustomerResponseDTO>
+            .createCustomer(CustomerInputDTO(displayName: "Ana", rut: nil, phone: nil, notes: nil))
+            .idempotent("m-1"))
+        #expect(transport.requests[0].headers["Idempotency-Key"] == "m-1")
+        #expect(transport.requests[0].timeout == nil)
+        #expect(Endpoint<StartImportResponseDTO>.importDeliveredOrders(customerCode: "1", password: "x").timeout == 600)
+        #expect(Endpoint<ReceiptOcrResponseDTO>.receiptOcr(orderId: "o", jpeg: Data()).timeout == 180)
+    }
+
     @Test func multipartContentTypeIsSent() async throws {
         let transport = FakeTransport([json(200, #"{"order":{"id":"o1","externalOrderId":"e1","orderNumber":"1","cycle":1,"subCycle":null,"orderedAt":"2026-03-01T10:00:00Z","deliveredAt":null,"statusName":"Entregado","itemsQuantity":0,"totalValueCents":0,"receiptOcrStatus":"succeeded","receiptOcrProcessedAt":null,"receivingClosedAt":null,"receivingReviewStatus":"draft","receivedUnitsQuantity":0,"pendingUnitsQuantity":0,"receivingStatus":"pending"},"ocr":{"status":"succeeded","processedAt":"2026-03-01T10:00:00Z","matchedLineCount":0,"unmatchedSkus":[],"extractedRows":[]}}"#)])
         let client = LiveAPIClient(baseURL: { baseURL }, transport: transport, credentials: InMemoryCredentialStore())

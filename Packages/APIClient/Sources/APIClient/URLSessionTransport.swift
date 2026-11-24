@@ -21,6 +21,7 @@ public final class URLSessionTransport: HTTPTransport {
         var urlRequest = URLRequest(url: request.url)
         urlRequest.httpMethod = request.method.rawValue
         urlRequest.httpBody = request.body
+        if let timeout = request.timeout { urlRequest.timeoutInterval = timeout }
         for (name, value) in request.headers {
             urlRequest.setValue(value, forHTTPHeaderField: name)
         }

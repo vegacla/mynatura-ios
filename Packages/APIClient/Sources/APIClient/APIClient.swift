@@ -33,7 +33,8 @@ public final class LiveAPIClient: APIClient {
         var headers = ["Accept": "application/json"]
         if endpoint.body != nil { headers["Content-Type"] = endpoint.contentType ?? "application/json" }
         if let cookie = CookieJar.header(for: credentials.load()) { headers["Cookie"] = cookie }
-        let request = HTTPRequest(method: endpoint.method, url: url, headers: headers, body: endpoint.body)
+        if let key = endpoint.idempotencyKey { headers["Idempotency-Key"] = key }
+        let request = HTTPRequest(method: endpoint.method, url: url, headers: headers, body: endpoint.body, timeout: endpoint.timeout)
 
         let response: HTTPResponse
         do {

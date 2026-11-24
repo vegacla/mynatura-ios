@@ -157,15 +157,21 @@ public extension Endpoint where Response == NaturaImportRunsResponseDTO {
 public extension Endpoint where Response == StartImportResponseDTO {
     /// Credenciales Natura: viajan una vez al backend y nunca se guardan en el dispositivo.
     static func importDeliveredOrders(customerCode: String, password: String) -> Self {
-        Endpoint(method: .post, path: "/api/natura/import-runs/delivered-orders",
-                 json: StartImportInputDTO(customerCode: customerCode, password: password))
+        var endpoint = Endpoint(method: .post, path: "/api/natura/import-runs/delivered-orders",
+                                json: StartImportInputDTO(customerCode: customerCode, password: password))
+        // Playwright + scraping + revista puede tardar varios minutos (§9.5).
+        endpoint.timeout = 600
+        return endpoint
     }
 }
 
 public extension Endpoint where Response == ReceiptOcrResponseDTO {
     static func receiptOcr(orderId: String, jpeg: Data) -> Self {
         let file = MultipartFile(fieldName: "file", fileName: "boleta.jpg", mimeType: "image/jpeg", data: jpeg)
-        return Endpoint(method: .post, path: "/api/natura/orders/\(PathEscape.segment(orderId))/receipt-ocr",
-                        body: file.body, contentType: file.contentType)
+        var endpoint = Endpoint<ReceiptOcrResponseDTO>(method: .post, path: "/api/natura/orders/\(PathEscape.segment(orderId))/receipt-ocr",
+                                                       body: file.body, contentType: file.contentType)
+        // Tesseract en el backend puede tardar más que el timeout normal.
+        endpoint.timeout = 180
+        return endpoint
     }
 }

@@ -18,6 +18,10 @@ public struct Endpoint<Response: Decodable & Sendable>: Sendable {
     public var body: Data?
     /// Content-Type del cuerpo; por defecto JSON.
     public var contentType: String?
+    /// Cabecera `Idempotency-Key` (§9.2): el backend repite la respuesta guardada si se reintenta.
+    public var idempotencyKey: String?
+    /// Tiempo máximo de espera de esta llamada (nil = el del transporte, 30 s).
+    public var timeout: TimeInterval?
 
     public init(method: HTTPMethod = .get, path: String, query: [QueryItem] = [], body: Data? = nil, contentType: String? = nil) {
         self.method = method
@@ -25,6 +29,13 @@ public struct Endpoint<Response: Decodable & Sendable>: Sendable {
         self.query = query
         self.body = body
         self.contentType = contentType
+    }
+
+    /// Copia con `Idempotency-Key`.
+    public func idempotent(_ key: String) -> Self {
+        var copy = self
+        copy.idempotencyKey = key
+        return copy
     }
 
     public init(method: HTTPMethod, path: String, json: some Encodable) {
