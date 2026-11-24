@@ -18,6 +18,21 @@ Diseño completo: [docs/ios-app-design.md](docs/ios-app-design.md).
 
 Con Apple ID gratis la app expira a los 7 días: volver a instalar con Sideloadly (los datos se conservan).
 
+## Probar en un simulador web (sin iPhone)
+
+CI también genera `MyNatura-simulator` (un `.zip` con el `.app` compilado para simulador; los simuladores web no aceptan `.ipa`):
+
+```bash
+gh run download --repo vegacla/mynatura-ios --name MyNatura-simulator -D build
+```
+
+Súbelo en [appetize.io/upload](https://appetize.io/upload) (o en otro servicio que acepte `.app` de simulador).
+Subida automática opcional: crea el secret `APPETIZE_API_TOKEN` en GitHub (Settings › Secrets › Actions); tras la primera subida,
+guarda el `publicKey` que imprime el job en la variable `APPETIZE_APP_ID` para que los siguientes builds actualicen la misma app.
+
+Limitaciones: sin cámara (escáner EAN y foto de boleta no disponibles; sí "Elegir foto"), y el simulador corre en la nube, así que
+el backend debe estar en una URL pública HTTPS (p. ej. `cloudflared tunnel --url http://localhost:3000`), no en la IP de la red local.
+
 ## Estructura
 
 ```text
