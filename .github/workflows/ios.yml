@@ -1,0 +1,77 @@
+name: iOS build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+  pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-tests:
+    name: Core tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        working-directory: Packages/Core
+        run: swift test
+
+  build-ipa:
+    name: Build unsigned IPA
+    needs: core-tests
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Archive (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project MyNatura.xcodeproj \
+            -scheme MyNatura \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/MyNatura.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tee build-log.txt | grep -E "error:|warning:|ARCHIVE" || true
+          test -d build/MyNatura.xcarchive/Products/Applications/MyNatura.app
+
+      - name: Package IPA
+        working-directory: build
+        run: |
+          mkdir -p Payload
+          cp -R MyNatura.xcarchive/Products/Applications/MyNatura.app Payload/
+          zip -qry MyNatura.ipa Payload
+          ls -lh MyNatura.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyNatura-ipa
+          path: build/MyNatura.ipa
+          retention-days: 7
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build-log.txt
+          retention-days: 7

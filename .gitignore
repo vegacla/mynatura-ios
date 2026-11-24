@@ -1,0 +1,18 @@
+# Xcode (generado por XcodeGen)
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+
+# Info.plist lo genera XcodeGen desde project.yml
+MyNatura/Resources/Info.plist
+
+# SwiftPM
+.build/
+.swiftpm/
+Package.resolved
+
+# SO
+.DS_Store
+Thumbs.db

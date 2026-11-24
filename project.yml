@@ -1,0 +1,41 @@
+name: MyNatura
+options:
+  bundleIdPrefix: cl.mynatura
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: es
+packages:
+  Core:
+    path: Packages/Core
+targets:
+  MyNatura:
+    type: application
+    platform: iOS
+    sources:
+      - path: MyNatura
+    dependencies:
+      - package: Core
+    info:
+      path: MyNatura/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: MyNatura
+        CFBundleDevelopmentRegion: es
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSCameraUsageDescription: "MyNatura usa la cámara para escanear códigos de barras y fotografiar boletas de pedidos."
+        NSPhotoLibraryUsageDescription: "MyNatura necesita acceso a tus fotos para elegir la boleta de un pedido."
+        NSLocalNetworkUsageDescription: "MyNatura se conecta al servidor de desarrollo en tu red local."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cl.mynatura.app
+        PRODUCT_NAME: MyNatura
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Manual
+    scheme: {}
