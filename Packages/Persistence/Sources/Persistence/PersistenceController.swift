@@ -10,6 +10,16 @@ public enum PersistenceController {
             CatalogProduct.self,
             StockItem.self,
             DatasetSyncState.self,
+            PricingReasonRecord.self,
+            CartDraft.self,
+            CartDraftLine.self,
+            LocalSale.self,
+            PendingMutation.self,
+            InventoryEventRecord.self,
+            NaturaOrder.self,
+            NaturaOrderLine.self,
+            Customer.self,
+            CustomerOrder.self,
         ])
     }
 
@@ -37,6 +47,16 @@ public enum PersistenceController {
         try context.delete(model: CatalogProduct.self)
         try context.delete(model: StockItem.self)
         try context.delete(model: DatasetSyncState.self)
+        try context.delete(model: PricingReasonRecord.self)
+        try context.delete(model: CartDraft.self)
+        try context.delete(model: CartDraftLine.self)
+        try context.delete(model: LocalSale.self)
+        try context.delete(model: PendingMutation.self)
+        try context.delete(model: InventoryEventRecord.self)
+        try context.delete(model: NaturaOrder.self)
+        try context.delete(model: NaturaOrderLine.self)
+        try context.delete(model: Customer.self)
+        try context.delete(model: CustomerOrder.self)
         try context.save()
     }
 }

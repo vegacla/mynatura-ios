@@ -27,7 +27,7 @@ struct MyNaturaApp: App {
             credentials: KeychainCredentialStore()
         )
         let session = SessionStore(api: api, repository: SessionRepository(context: container.mainContext))
-        let sync = SyncEngine(api: api, context: container.mainContext)
+        let sync = SyncEngine(api: api, context: container.mainContext, connectivity: ConnectivityMonitor())
         sync.onUnauthorized = { [weak session] in session?.handleUnauthorized() }
         _session = State(initialValue: session)
         _sync = State(initialValue: sync)
