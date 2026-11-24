@@ -7,11 +7,10 @@ import SwiftUI
 import Sync
 
 /// Recibir por línea (§4.6): comprobante OCR, asistencia de faltantes y edición por línea.
+/// Solo consulta los productos y el stock de los SKU del pedido (no el catálogo completo).
 struct ReceiveByLineScreen: View {
     @Query private var orders: [NaturaOrder]
     @Query private var lines: [NaturaOrderLine]
-    @Query private var products: [CatalogProduct]
-    @Query private var stock: [StockItem]
     let orderId: String
     let sellerId: String
 
@@ -20,14 +19,68 @@ struct ReceiveByLineScreen: View {
         self.sellerId = sellerId
         _orders = Query(filter: #Predicate<NaturaOrder> { $0.id == orderId })
         _lines = Query(filter: #Predicate<NaturaOrderLine> { $0.orderId == orderId }, sort: \.position)
-        _products = Query(filter: #Predicate<CatalogProduct> { $0.sellerId == sellerId })
-        _stock = Query(filter: #Predicate<StockItem> { $0.sellerId == sellerId })
     }
 
     var body: some View {
-        let stockBySku = stockBySku
+        ReceiveByLineProducts(order: orders.first, lines: lines, skus: Self.skuVariants(lines), sellerId: sellerId)
+            .navigationTitle("Recibir por línea")
+            .navigationBarTitleDisplayMode(.inline)
+            .syncStatusToolbar(sellerId: sellerId)
+    }
+
+    /// SKU de las líneas tal cual y normalizados, para encontrar el producto aunque difiera el formato.
+    private static func skuVariants(_ lines: [NaturaOrderLine]) -> [String] {
+        var set = Set<String>()
+        for line in lines {
+            let normalized = Normalize.naturaSku(line.naturaSku)
+            set.formUnion([line.naturaSku, normalized, normalized.lowercased(), normalized.uppercased()])
+        }
+        return set.sorted()
+    }
+}
+
+/// Productos del catálogo cuyos SKU están en el pedido.
+private struct ReceiveByLineProducts: View {
+    @Query private var products: [CatalogProduct]
+    let order: NaturaOrder?
+    let lines: [NaturaOrderLine]
+    let sellerId: String
+
+    init(order: NaturaOrder?, lines: [NaturaOrderLine], skus: [String], sellerId: String) {
+        self.order = order
+        self.lines = lines
+        self.sellerId = sellerId
+        _products = Query(filter: #Predicate<CatalogProduct> { $0.sellerId == sellerId && skus.contains($0.naturaSku) })
+    }
+
+    var body: some View {
+        let productIdBySku = Dictionary(products.map { (Normalize.naturaSku($0.naturaSku).lowercased(), $0.id) },
+                                        uniquingKeysWith: { first, _ in first })
+        ReceiveByLineList(order: order, lines: lines, productIdBySku: productIdBySku,
+                          productIds: Array(Set(productIdBySku.values)).sorted(), sellerId: sellerId)
+    }
+}
+
+/// Lista de recepción con el stock solo de esos productos.
+private struct ReceiveByLineList: View {
+    @Query private var stock: [StockItem]
+    let order: NaturaOrder?
+    let lines: [NaturaOrderLine]
+    let productIdBySku: [String: String]
+    let sellerId: String
+
+    init(order: NaturaOrder?, lines: [NaturaOrderLine], productIdBySku: [String: String], productIds: [String], sellerId: String) {
+        self.order = order
+        self.lines = lines
+        self.productIdBySku = productIdBySku
+        self.sellerId = sellerId
+        _stock = Query(filter: #Predicate<StockItem> { $0.sellerId == sellerId && productIds.contains($0.sellerProductId) })
+    }
+
+    var body: some View {
+        let stockById = Dictionary(stock.map { ($0.sellerProductId, $0.operationalQuantity) }, uniquingKeysWith: { first, _ in first })
         List {
-            if let order = orders.first {
+            if let order {
                 if order.isClosed {
                     AlertBanner("Pedido cerrado. Reábrelo para editar.", tone: .info, systemImage: "lock.fill")
                 } else {
@@ -35,21 +88,12 @@ struct ReceiveByLineScreen: View {
                     ShortageCard(order: order, lines: lines, sellerId: sellerId)
                 }
                 ForEach(lines) { line in
-                    ReceivingLineRow(line: line, stock: stockBySku[Normalize.naturaSku(line.naturaSku).lowercased()],
+                    let productId = productIdBySku[Normalize.naturaSku(line.naturaSku).lowercased()]
+                    ReceivingLineRow(line: line, stock: productId.flatMap { stockById[$0] },
                                      isClosed: order.isClosed, sellerId: sellerId, editable: true)
                 }
             }
         }
-        .navigationTitle("Recibir por línea")
-        .navigationBarTitleDisplayMode(.inline)
-        .syncStatusToolbar(sellerId: sellerId)
-    }
-
-    private var stockBySku: [String: Int] {
-        let productBySku = Dictionary(products.map { (Normalize.naturaSku($0.naturaSku).lowercased(), $0.id) },
-                                      uniquingKeysWith: { first, _ in first })
-        let stockById = Dictionary(stock.map { ($0.sellerProductId, $0.operationalQuantity) }, uniquingKeysWith: { first, _ in first })
-        return productBySku.compactMapValues { stockById[$0] }
     }
 }
 
