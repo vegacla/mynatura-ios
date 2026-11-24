@@ -110,7 +110,7 @@ struct SaleReviewScreen: View {
                 if let message = sale.errorMessage {
                     Section { AlertBanner(message, tone: .danger) }
                 }
-                Section("Líneas") {
+                Section {
                     ForEach(sale.lines, id: \.sellerProductId) { line in
                         VStack(alignment: .leading) {
                             Text(line.productName).font(.subheadline)
@@ -119,6 +119,8 @@ struct SaleReviewScreen: View {
                                 set: { quantities[line.sellerProductId] = $0 }), in: 0...999)
                         }
                     }
+                } header: {
+                    Text("Líneas")
                 } footer: {
                     Text("Deja en 0 las líneas que quieras quitar.")
                 }
