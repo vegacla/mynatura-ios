@@ -1,6 +1,6 @@
 # Propuesta — Interacción por voz en MyNatura iOS
 
-> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`) y V2 (dictado en el editor de pedido de cliente) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
+> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) y V3 (recepción, conciliación y modo continuo) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
 
 ---
 
@@ -138,6 +138,25 @@ public enum ProductRef: Equatable, Sendable { case sku(String), text(String) }
   - `CustomerOrderEditor`: botón **Dictar** en la barra inferior, mensaje con lo aplicado y **Deshacer dictado** (restaura el estado previo). "Deshacer" dicho sin chips pendientes también lo usa.
 - **Pendiente para V3+:** modo continuo, respuestas habladas y la sección Ajustes → Voz (hoy el permiso de servidor se ofrece en la misma hoja cuando falta el modelo local).
 
+## 5.7 Implementación V3
+
+- **Core:**
+  - `CommandGrammar` entiende `.receiving`: "llegaron cuatro del 87654", "del Kaiak llegaron dos, falta uno", "llegó completo el Ekos", "no llegó el 12345", "otro más" o "uno más del 87654" (suman), y un nombre solo, que suma 1 como un escaneo.
+  - También entiende `.reconciliation`: "conté siete", "son doce unidades", "no hay ninguno" y "nota: …".
+  - Comandos nuevos: `receive(product:amount:)` con `ReceiveAmount` (`received`, `missing`, `complete`, `increment`) y `physicalCount`.
+  - Sin producto, la acción va a la última línea mencionada (`previousProductId`).
+  - `VoiceReceivingApplier` calcula la cantidad final sin pasar de lo pedido y cuenta las que se ajustaron.
+  - El segmentador no corta un "más" que va después de un número o de "otro".
+- **Modo continuo** (`SpeechCaptureService.startContinuous`):
+  - con un toque corto, el botón escucha sin manos;
+  - cada pausa de 1,5 s cierra una frase y reinicia el reconocimiento;
+  - 8 s de silencio, "listo" u otro toque lo terminan.
+  - Funciona en Recepción y en el pedido de cliente. En Conciliación solo se usa mantener presionado.
+- **Pantallas:**
+  - `ReceivingVoiceSheet`: botón **Dictar** en Recibir por línea y por código, con chips, "Elegir línea…" y la sección "Quedará así" (antes → después / pedido). **Aplicar** usa `confirmReceivingLine` por cada línea que cambia y mantiene su precio de venta.
+  - Conciliación (detalle de producto): un botón de voz llena el conteo físico y la observación. Se guarda con **Guardar conciliación**, como siempre.
+- **Límite conocido:** "Kaiak completo y Ekos completo" queda en un solo trozo; con una pausa o una coma entre productos se separa bien.
+
 ## 6. Permisos y configuración
 
 En `project.yml` (`info.properties`):
@@ -180,7 +199,7 @@ NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar 
 |---|---|---|---|
 | V1 | Núcleo | `Core/Voice`: números, segmentación, gramática de pedido de cliente, `ProductMatcher` + tests | ✅ 2026-11-26 |
 | V2 | Pedido de cliente por voz | `SpeechCaptureService` (local preferido), overlay con chips, botón en el editor, permisos | ✅ 2026-11-26 (sin probar en iPhone) |
-| V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo | — |
+| V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo | ✅ 2026-11-26 (sin probar en iPhone) |
 | V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | — |
 | V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | — |
 | V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo | — |

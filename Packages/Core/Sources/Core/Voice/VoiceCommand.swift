@@ -22,6 +22,18 @@ public enum CycleRef: Equatable, Sendable {
     case number(Int)
 }
 
+/// Cuánto llegó de una línea de pedido Natura.
+public enum ReceiveAmount: Equatable, Sendable {
+    /// "llegaron cuatro": queda en 4.
+    case received(Int)
+    /// "falta uno": queda en pedido − 1.
+    case missing(Int)
+    /// "llegó completo": queda en lo pedido.
+    case complete
+    /// "otro más", "llegó el Kaiak": suma, como un escaneo.
+    case increment(Int)
+}
+
 /// Lo que la voz propone. La pantalla lo muestra como chip y solo se aplica con un toque.
 public enum VoiceCommand: Equatable, Sendable {
     case setCustomer(name: String)
@@ -32,6 +44,10 @@ public enum VoiceCommand: Equatable, Sendable {
     case setQuantity(product: ProductRef, quantity: Int)
     case removeLine(ProductRef)
     case note(String)
+    /// Recepción: `product` nil = la última línea mencionada ("llegaron dos, falta uno").
+    case receive(product: ProductRef?, amount: ReceiveAmount)
+    /// Conciliación: "conté siete".
+    case physicalCount(Int)
     case undo
     case done
     /// Trozo que no se entendió; se muestra con "?" para corregirlo a mano.

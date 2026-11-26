@@ -13,6 +13,10 @@ public enum VoiceAction: Equatable, Sendable {
     case setQuantity(reference: ProductRef, quantity: Int, match: VoiceMatch)
     case removeLine(reference: ProductRef, match: VoiceMatch)
     case note(String)
+    /// Recepción de una línea del pedido Natura (id de la línea en `match`).
+    case receive(reference: ProductRef?, amount: ReceiveAmount, match: VoiceMatch)
+    /// Conteo físico de la conciliación.
+    case count(Int)
     case unrecognized(String)
 
     /// Se puede aplicar sin que la persona elija nada.
@@ -21,12 +25,13 @@ public enum VoiceAction: Equatable, Sendable {
         case .customer(_, let match):
             if case .ambiguous = match { return false }
             return true
-        case .addLine(_, _, _, let match), .setQuantity(_, _, let match), .removeLine(_, let match):
+        case .addLine(_, _, _, let match), .setQuantity(_, _, let match), .removeLine(_, let match),
+             .receive(_, _, let match):
             if case .found = match { return true }
             return false
         case .unrecognized:
             return false
-        case .cycle, .keepCycle, .repeatLast, .note:
+        case .cycle, .keepCycle, .repeatLast, .note, .count:
             return true
         }
     }
@@ -37,7 +42,8 @@ public enum VoiceAction: Equatable, Sendable {
         case .customer(_, .ambiguous(let ids)),
              .addLine(_, _, _, .ambiguous(let ids)),
              .setQuantity(_, _, .ambiguous(let ids)),
-             .removeLine(_, .ambiguous(let ids)):
+             .removeLine(_, .ambiguous(let ids)),
+             .receive(_, _, .ambiguous(let ids)):
             return ids
         default:
             return []
@@ -55,6 +61,8 @@ public enum VoiceAction: Equatable, Sendable {
             return .setQuantity(reference: reference, quantity: quantity, match: .found(id))
         case .removeLine(let reference, _):
             return .removeLine(reference: reference, match: .found(id))
+        case .receive(let reference, let amount, _):
+            return .receive(reference: reference, amount: amount, match: .found(id))
         default:
             return self
         }
@@ -87,15 +95,23 @@ public struct VoiceProposal: Equatable, Sendable {
 }
 
 public enum VoiceProposalBuilder {
-    /// Comandos → chips, resolviendo productos y clientes. `firstId` permite acumular varias frases.
+    /// Comandos → chips, resolviendo productos y clientes. `firstId` permite acumular varias frases;
+    /// `previousProductId` es el último producto (o línea) mencionado antes, para "falta uno" u "otro más".
     public static func build(_ commands: [VoiceCommand], products: [VoiceCandidate], customers: [VoiceCandidate],
-                             referenceYear: Int, firstId: Int = 0) -> VoiceProposal {
+                             referenceYear: Int, firstId: Int = 0, previousProductId: String? = nil) -> VoiceProposal {
         var proposal = VoiceProposal()
         var nextId = firstId
+        var lastProductId = previousProductId
 
         func append(_ action: VoiceAction) {
             proposal.items.append(VoiceProposalItem(id: nextId, action: action))
             nextId += 1
+        }
+
+        func resolve(_ reference: ProductRef) -> VoiceMatch {
+            let match = ProductMatcher.resolve(reference, in: products)
+            if case .found(let id) = match { lastProductId = id }
+            return match
         }
 
         for command in commands {
@@ -111,15 +127,23 @@ public enum VoiceProposalBuilder {
                     append(.unrecognized("ciclo \(spoken)"))
                 }
             case .addLine(let quantity, let reference, let price):
-                append(.addLine(quantity: quantity, reference: reference, price: price,
-                                match: ProductMatcher.resolve(reference, in: products)))
+                append(.addLine(quantity: quantity, reference: reference, price: price, match: resolve(reference)))
             case .repeatLast(let quantity):
                 append(.repeatLast(quantity: quantity))
             case .setQuantity(let reference, let quantity):
-                append(.setQuantity(reference: reference, quantity: quantity,
-                                    match: ProductMatcher.resolve(reference, in: products)))
+                append(.setQuantity(reference: reference, quantity: quantity, match: resolve(reference)))
             case .removeLine(let reference):
-                append(.removeLine(reference: reference, match: ProductMatcher.resolve(reference, in: products)))
+                append(.removeLine(reference: reference, match: resolve(reference)))
+            case .receive(let reference, let amount):
+                let match: VoiceMatch
+                if let reference {
+                    match = resolve(reference)
+                } else {
+                    match = lastProductId.map { VoiceMatch.found($0) } ?? .notFound
+                }
+                append(.receive(reference: reference, amount: amount, match: match))
+            case .physicalCount(let counted):
+                append(.count(counted))
             case .note(let text):
                 append(.note(text))
             case .undo:
@@ -254,6 +278,60 @@ public enum VoiceOrderApplier {
             state.lines.append(VoiceOrderState.Line(productId: productId, quantity: min(quantity, maximumQuantity),
                                                     finalPesos: finalPesos))
         }
+    }
+}
+
+/// Línea de un pedido Natura para aplicar la recepción dictada.
+public struct VoiceReceivingLine: Equatable, Sendable {
+    public let id: String
+    public let ordered: Int
+    public var received: Int
+
+    public init(id: String, ordered: Int, received: Int) {
+        self.id = id
+        self.ordered = ordered
+        self.received = received
+    }
+}
+
+public struct VoiceReceivingResult: Equatable, Sendable {
+    public var lines: [VoiceReceivingLine]
+    public var applied: Int
+    public var skipped: Int
+    /// Cantidades dichas que superaban lo pedido y se ajustaron al máximo.
+    public var capped: Int
+}
+
+public enum VoiceReceivingApplier {
+    /// Cantidad recibida resultante, sin pasar de lo pedido.
+    public static func target(_ amount: ReceiveAmount, ordered: Int, received: Int) -> (quantity: Int, capped: Bool) {
+        switch amount {
+        case .received(let quantity):
+            return (min(max(quantity, 0), ordered), quantity > ordered)
+        case .missing(let missing):
+            return (max(ordered - missing, 0), missing > ordered)
+        case .complete:
+            return (ordered, false)
+        case .increment(let extra):
+            return (min(received + extra, ordered), received + extra > ordered)
+        }
+    }
+
+    public static func apply(_ items: [VoiceProposalItem], to lines: [VoiceReceivingLine]) -> VoiceReceivingResult {
+        var result = VoiceReceivingResult(lines: lines, applied: 0, skipped: 0, capped: 0)
+        for item in items {
+            guard case .receive(_, let amount, .found(let id)) = item.action,
+                  let index = result.lines.firstIndex(where: { $0.id == id }) else {
+                result.skipped += 1
+                continue
+            }
+            let line = result.lines[index]
+            let outcome = target(amount, ordered: line.ordered, received: line.received)
+            result.lines[index].received = outcome.quantity
+            result.applied += 1
+            if outcome.capped { result.capped += 1 }
+        }
+        return result
     }
 }
 

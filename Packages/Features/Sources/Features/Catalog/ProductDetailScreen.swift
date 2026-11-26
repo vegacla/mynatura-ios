@@ -114,6 +114,9 @@ private struct ReconciliationSection: View {
     @State private var counted = 0
     @State private var note = ""
     @State private var savedMessage: String?
+    @State private var speech = SpeechCaptureService()
+    @State private var voiceMessage: String?
+    @AppStorage("voice.allowServerRecognition") private var allowServer = false
 
     var body: some View {
         let theoretical = stock?.theoreticalQuantity ?? 0
@@ -129,6 +132,18 @@ private struct ReconciliationSection: View {
             }
             QuantityStepper("Conteo físico", value: $counted, in: 0...9999)
             TextField("Observación", text: $note, axis: .vertical)
+            HoldToTalkButton(isListening: speech.isListening,
+                             onPress: { startDictation() }, onRelease: { speech.stop() })
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+            if let voiceMessage {
+                Text(voiceMessage).font(.footnote).foregroundStyle(.secondary)
+            }
+            if case .failed(let error) = speech.state {
+                AlertBanner(error, tone: .warning)
+                if !allowServer {
+                    Toggle("Permitir reconocimiento en servidores de Apple", isOn: $allowServer)
+                }
+            }
             Text(StockRules.deltaLabel(counted: counted, theoretical: operational))
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(counted == operational ? Color.secondary : StatusTone.warning.color)
@@ -147,6 +162,39 @@ private struct ReconciliationSection: View {
             Text("El conteo físico pasa a ser el stock operativo. El historial no se pisa: queda como evento propio.")
         }
         .onAppear { counted = operational }
+        .onChange(of: speech.lastUtterance) { _, utterance in
+            if let utterance { applyDictation(utterance.text) }
+        }
+        .onDisappear { speech.cancel() }
+    }
+
+    private func startDictation() {
+        voiceMessage = nil
+        Task { await speech.start(contextualStrings: [], allowServer: allowServer) }
+    }
+
+    /// "conté siete" llena el conteo; "nota: …" la observación. Se guarda con el botón, como siempre.
+    private func applyDictation(_ text: String) {
+        var understood: [String] = []
+        for command in CommandGrammar.interpret(text, context: .reconciliation) {
+            switch command {
+            case .physicalCount(let value):
+                counted = min(max(value, 0), 9999)
+                understood.append("conteo \(counted)")
+            case .note(let noteText):
+                note = note.isEmpty ? noteText : note + "\n" + noteText
+                understood.append("observación")
+            default:
+                break
+            }
+        }
+        if understood.isEmpty {
+            voiceMessage = "No entendí “\(text)”. Prueba con “conté siete”."
+            Haptics.error()
+        } else {
+            voiceMessage = "Dictado: " + understood.joined(separator: " y ") + ". Revisa y toca Guardar conciliación."
+            Haptics.tap()
+        }
     }
 }
 

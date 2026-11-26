@@ -12,6 +12,7 @@ struct ReceiveByCodeScreen: View {
     @Query private var lines: [NaturaOrderLine]
     @State private var code = ""
     @State private var scanning = false
+    @State private var dictating = false
     @State private var feedback: (text: String, isError: Bool)?
     @FocusState private var focused: Bool
     let orderId: String
@@ -57,6 +58,16 @@ struct ReceiveByCodeScreen: View {
         .onAppear { focused = true }
         .sheet(isPresented: $scanning) {
             ScannerSheet(title: "Escaneo continuo", continuous: true) { value in submit(value) }
+        }
+        .toolbar {
+            ToolbarItem(placement: .bottomBar) {
+                Button { dictating = true } label: { Label("Dictar", systemImage: "mic.fill").labelStyle(.titleAndIcon) }
+                    .disabled(isClosed || lines.isEmpty)
+            }
+        }
+        .sheet(isPresented: $dictating) {
+            ReceivingVoiceSheet(lines: lines, sellerId: sellerId)
+                .presentationDetents([.medium, .large])
         }
     }
 

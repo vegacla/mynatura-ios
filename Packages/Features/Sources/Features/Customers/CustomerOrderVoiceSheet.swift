@@ -49,7 +49,9 @@ struct CustomerOrderVoiceSheet: View {
                 examplesSection
             }
             .safeAreaInset(edge: .bottom) {
-                HoldToTalkButton(isListening: speech.isListening, onPress: { startListening() }, onRelease: { speech.stop() })
+                HoldToTalkButton(isListening: speech.isListening, isContinuous: speech.isContinuous,
+                                 onPress: { startListening() }, onRelease: { speech.stop() },
+                                 onTap: { toggleContinuous() })
                     .padding(.horizontal)
                     .padding(.bottom, 8)
                     .background(.bar)
@@ -80,7 +82,8 @@ struct CustomerOrderVoiceSheet: View {
     private var transcriptSection: some View {
         Section {
             if speech.transcript.isEmpty {
-                Text(speech.isListening ? "Te escucho…" : "Mantén presionado el botón y dicta el pedido.")
+                Text(speech.isContinuous ? "Te escucho. Haz una pausa entre productos; di “listo” para terminar."
+                     : (speech.isListening ? "Te escucho…" : "Mantén presionado y dicta, o toca para hablar sin manos."))
                     .foregroundStyle(.secondary)
             } else {
                 Text(speech.transcript)
@@ -230,6 +233,15 @@ struct CustomerOrderVoiceSheet: View {
         }
     }
 
+    private func toggleContinuous() {
+        if speech.isContinuous {
+            speech.stopContinuous()
+        } else {
+            message = nil
+            speech.startContinuous()
+        }
+    }
+
     private func commit(_ text: String) {
         let commands = CommandGrammar.interpret(text, context: .customerOrder)
         let proposal = VoiceProposalBuilder.build(commands, products: products, customers: customers,
@@ -255,8 +267,9 @@ struct CustomerOrderVoiceSheet: View {
         } else if !proposal.items.isEmpty {
             Haptics.error()
         }
-        if proposal.finishRequested, applicableCount > 0 {
-            message = "Listo. Revisa y toca Aplicar."
+        if proposal.finishRequested {
+            speech.stopContinuous()
+            if applicableCount > 0 { message = "Listo. Revisa y toca Aplicar." }
         }
     }
 

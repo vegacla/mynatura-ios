@@ -12,7 +12,11 @@ public enum UtteranceSegmenter {
         "elimina", "eliminar", "borra", "borrar", "para", "cliente", "clienta", "agrega", "agregar", "agregale",
         "anade", "anota", "pon", "ponle", "suma", "cambia", "cambiar", "sube", "subir", "baja", "bajar",
         "deja", "dejar", "ciclo", "media", "listo", "deshacer", "deshaz", "del", "codigo",
+        "llegaron", "llego", "llegan", "vinieron", "vino", "falta", "faltan", "no",
     ]
+
+    /// "más" después de un número u "otro" es parte de la línea ("uno más del 12345", "otro más").
+    static let moreAfter: Set<String> = ["otro", "otra", "otros", "otras"]
 
     /// Una nota se lleva el resto de la frase, con comas incluidas.
     static let noteKeywords: Set<String> = ["nota", "observacion"]
@@ -60,7 +64,10 @@ public enum UtteranceSegmenter {
                 index += 1
                 continue
             }
-            if conjunctions.contains(token.text), !insideNumber.contains(index) {
+            let followsNumberOrRepeat = index > 0
+                && (numberStarts[index - 1] != nil || insideNumber.contains(index - 1) || moreAfter.contains(tokens[index - 1].text))
+            if conjunctions.contains(token.text), !insideNumber.contains(index),
+               !(token.text == "mas" && followsNumberOrRepeat) {
                 if current.isEmpty {
                     index += 1
                     continue

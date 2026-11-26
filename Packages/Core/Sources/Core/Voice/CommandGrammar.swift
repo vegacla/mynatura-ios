@@ -1,7 +1,7 @@
 import Foundation
 
 /// Texto transcrito → comandos, según la pantalla (`VoiceContext`).
-/// V1 cubre el editor de pedido de cliente; los demás contextos devuelven `.unrecognized` por ahora.
+/// Cubre el editor de pedido de cliente, la recepción y la conciliación; los demás contextos devuelven `.unrecognized` por ahora.
 public enum CommandGrammar {
     static let maximumQuantity = 99
     /// Un "a quince" no es un precio creíble; bajo esto se deja como texto.
@@ -56,7 +56,11 @@ public enum CommandGrammar {
         switch context {
         case .customerOrder:
             return customerOrderCommands(segment)
-        case .naturaDraft, .receiving, .reconciliation, .cart, .global:
+        case .receiving:
+            return receivingCommands(segment)
+        case .reconciliation:
+            return reconciliationCommands(segment)
+        case .naturaDraft, .cart, .global:
             let text = VoiceText.joinRaw(segment)
             return text.isEmpty ? [] : [.unrecognized(text)]
         }
@@ -226,6 +230,105 @@ public enum CommandGrammar {
         let quantity = item.quantity ?? 1
         guard (1...maximumQuantity).contains(quantity) else { return .unrecognized(VoiceText.joinRaw(words)) }
         return .addLine(quantity: quantity, product: product, price: price)
+    }
+
+    // MARK: - Recepción
+
+    static let receivedVerbs: Set<String> = [
+        "llegaron", "llego", "llegan", "llega", "vinieron", "vino", "recibi", "recibimos", "recibido", "recibidos",
+        "recibidas", "recibe", "entraron", "entro",
+    ]
+    static let missingWords: Set<String> = ["falta", "faltan", "faltaron", "falto", "faltante", "faltantes"]
+    static let completeWords: Set<String> = [
+        "completo", "completos", "completa", "completas", "entero", "enteros", "todo", "todos", "todas",
+    ]
+
+    /// "llegaron cuatro del 87654" · "del Kaiak llegaron dos, falta uno" · "llegó completo el Ekos" ·
+    /// "no llegó el 12345" · "otro más" · "Kaiak" (suma 1, como un escaneo).
+    static func receivingCommands(_ segment: [VoiceToken]) -> [VoiceCommand] {
+        var words = Array(segment.drop { $0.isSeparator || leadingFillers.contains($0.text) })
+        guard let first = words.first else { return [] }
+        let joined = words.map(\.text).joined(separator: " ")
+        if donePhrases.contains(joined) { return [.done] }
+        if undoVerbs.contains(first.text) || undoPhrases.contains(joined) { return [.undo] }
+
+        // "otro más", "otros dos del 12345"
+        if repeatWords.contains(first.text) {
+            let rest = words.dropFirst().filter { !repeatFillers.contains($0.text) }
+            let item = extractItem(rest)
+            return [.receive(product: item.product, amount: .increment(item.quantity ?? 1))]
+        }
+        // "uno más del 12345", "dos más"
+        if let number = SpanishNumberParser.parse(words, at: 0), number.tokenCount < words.count,
+           words[number.tokenCount].text == "mas", isQuantity(number) {
+            let rest = Array(words.dropFirst(number.tokenCount + 1))
+            return [.receive(product: extractItem(rest).product, amount: .increment(number.value))]
+        }
+
+        words = dropTrailingFillers(words)
+        guard !words.isEmpty else { return [] }
+
+        // "no llegó el 12345"
+        if words.count > 1, words[0].text == "no", receivedVerbs.contains(words[1].text) {
+            let rest = Array(words.dropFirst(2))
+            return [.receive(product: extractItem(rest).product, amount: .received(0))]
+        }
+
+        // "falta uno del Kaiak", "del 12345 faltan dos"
+        if let marker = words.firstIndex(where: { missingWords.contains($0.text) }) {
+            var missing = 1
+            var restEnd = marker + 1
+            if let number = SpanishNumberParser.parse(words, at: marker + 1), isQuantity(number) {
+                missing = number.value
+                restEnd = marker + 1 + number.tokenCount
+            }
+            let rest = (Array(words[..<marker]) + Array(words[restEnd...])).filter { !receivedVerbs.contains($0.text) }
+            return [.receive(product: extractItem(rest).product, amount: .missing(missing))]
+        }
+
+        // "llegó completo el Ekos", "llegaron todos los Kaiak"
+        if words.contains(where: { completeWords.contains($0.text) }) {
+            let rest = words.filter { !completeWords.contains($0.text) && !receivedVerbs.contains($0.text) }
+            return [.receive(product: extractItem(rest).product, amount: .complete)]
+        }
+
+        let rest = words.filter { !receivedVerbs.contains($0.text) }
+        let item = extractItem(rest)
+        if item.product == nil, item.quantity == nil {
+            return [.unrecognized(VoiceText.joinRaw(words))]
+        }
+        if let quantity = item.quantity {
+            return [.receive(product: item.product, amount: .received(quantity))]
+        }
+        return [.receive(product: item.product, amount: .increment(1))]
+    }
+
+    // MARK: - Conciliación
+
+    static let countWords: Set<String> = [
+        "conte", "contamos", "conto", "cuento", "conteo", "son", "hay", "tengo", "tenemos", "quedan", "queda",
+        "fisico", "total", "stock", "no", "el", "la", "los", "las", "de", "del", "unidades", "unidad", "en",
+    ]
+    static let zeroWords: Set<String> = ["ninguno", "ninguna", "nada"]
+
+    /// "conté siete" · "son doce unidades" · "no hay ninguno" · "nota: dos rotos".
+    static func reconciliationCommands(_ segment: [VoiceToken]) -> [VoiceCommand] {
+        var words = Array(segment.drop { $0.isSeparator || leadingFillers.contains($0.text) })
+        guard let first = words.first else { return [] }
+        if let note = noteCommand(words) { return [note] }
+        let joined = words.map(\.text).joined(separator: " ")
+        if donePhrases.contains(joined) { return [.done] }
+        if undoVerbs.contains(first.text) || undoPhrases.contains(joined) { return [.undo] }
+
+        words = dropTrailingFillers(words)
+        let core = words.filter { !countWords.contains($0.text) }
+        if !core.isEmpty, core.allSatisfy({ zeroWords.contains($0.text) }) {
+            return [.physicalCount(0)]
+        }
+        if let number = SpanishNumberParser.parse(core, at: 0), number.tokenCount == core.count {
+            return [.physicalCount(number.value)]
+        }
+        return [.unrecognized(VoiceText.joinRaw(words))]
     }
 
     // MARK: - Cantidad + producto

@@ -64,6 +64,7 @@ private struct ReceiveByLineProducts: View {
 /// Lista de recepción con el stock solo de esos productos.
 private struct ReceiveByLineList: View {
     @Query private var stock: [StockItem]
+    @State private var dictating = false
     let order: NaturaOrder?
     let lines: [NaturaOrderLine]
     let productIdBySku: [String: String]
@@ -93,6 +94,16 @@ private struct ReceiveByLineList: View {
                                      isClosed: order.isClosed, sellerId: sellerId, editable: true)
                 }
             }
+        }
+        .toolbar {
+            ToolbarItem(placement: .bottomBar) {
+                Button { dictating = true } label: { Label("Dictar", systemImage: "mic.fill").labelStyle(.titleAndIcon) }
+                    .disabled(order?.isClosed ?? true || lines.isEmpty)
+            }
+        }
+        .sheet(isPresented: $dictating) {
+            ReceivingVoiceSheet(lines: lines, sellerId: sellerId)
+                .presentationDetents([.medium, .large])
         }
     }
 }
