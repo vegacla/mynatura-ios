@@ -1,6 +1,6 @@
 # Propuesta — Interacción por voz en MyNatura iOS
 
-> **Estado:** propuesta, sin implementar. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
+> **Estado:** V1 (núcleo) implementada en `Packages/Core/Sources/Core/Voice/`; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
 
 ---
 
@@ -69,6 +69,8 @@ Core/Voice (solo Foundation, testeado en Linux)
 ```
 
 ### 5.1 Comandos (`Core`)
+
+> Implementado en V1 (`VoiceCommand.swift`): `setCustomer(name:)`, `setCycle`, `addLine(quantity:product:price:)` con `ParsedPrice` (marca los precios abreviados), `repeatLast`, `setQuantity`, `removeLine`, `note`, `undo`, `done` y `unrecognized`. `receive`, `physicalCount`, `query` y `navigate` llegan con sus etapas (V3–V4). El bloque de abajo es el diseño original.
 ```swift
 public enum VoiceCommand: Equatable, Sendable {
     case setCustomer(CustomerRef)                    // existente o nuevo por nombre
@@ -160,15 +162,15 @@ NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar 
 
 ## 9. Plan por etapas
 
-| # | Etapa | Entregable |
-|---|---|---|
-| V1 | Núcleo | `Core/Voice`: números, segmentación, gramática de pedido de cliente, `ProductMatcher` + tests |
-| V2 | Pedido de cliente por voz | `SpeechCaptureService` (local preferido), overlay con chips, botón en el editor, permisos |
-| V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo |
-| V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` |
-| V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) |
-| V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo |
-| V7 | Opcionales | App Intents / Atajos; respaldo con `FoundationModels` en equipos compatibles |
+| # | Etapa | Entregable | Estado |
+|---|---|---|---|
+| V1 | Núcleo | `Core/Voice`: números, segmentación, gramática de pedido de cliente, `ProductMatcher` + tests | ✅ 2026-11-26 |
+| V2 | Pedido de cliente por voz | `SpeechCaptureService` (local preferido), overlay con chips, botón en el editor, permisos | — |
+| V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo | — |
+| V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | — |
+| V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | — |
+| V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo | — |
+| V7 | Opcionales | App Intents / Atajos; respaldo con `FoundationModels` en equipos compatibles | — |
 
 ---
 
