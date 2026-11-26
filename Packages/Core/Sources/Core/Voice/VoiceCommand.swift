@@ -48,6 +48,8 @@ public enum VoiceCommand: Equatable, Sendable {
     case receive(product: ProductRef?, amount: ReceiveAmount)
     /// Conciliación: "conté siete".
     case physicalCount(Int)
+    /// Consulta desde cualquier pantalla: "¿cuánto me queda de Kaiak?".
+    case query(VoiceQuery)
     case undo
     case done
     /// Trozo que no se entendió; se muestra con "?" para corregirlo a mano.

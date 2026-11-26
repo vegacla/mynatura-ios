@@ -1,6 +1,6 @@
 # Propuesta — Interacción por voz en MyNatura iOS
 
-> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) y V3 (recepción, conciliación y modo continuo) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
+> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) V3 (recepción, conciliación y modo continuo) y V4 (consultas con respuesta hablada) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
 
 ---
 
@@ -157,6 +157,22 @@ public enum ProductRef: Equatable, Sendable { case sku(String), text(String) }
   - Conciliación (detalle de producto): un botón de voz llena el conteo físico y la observación. Se guarda con **Guardar conciliación**, como siempre.
 - **Límite conocido:** "Kaiak completo y Ekos completo" queda en un solo trozo; con una pausa o una coma entre productos se separa bien.
 
+## 5.8 Implementación V4
+
+- **Core** (`VoiceQuery.swift`):
+  - el contexto `.global` entiende `VoiceQuery`:
+    - `stock` ("¿cuánto me queda de Kaiak?", "stock del 12345", "¿hay desodorante Humor?");
+    - `customerOrders` ("¿qué me encargó Juan?", "pedidos pendientes de María Soto");
+    - `sales` ("¿cuánto vendí hoy / ayer / esta semana / la semana pasada / este mes / el mes pasado?");
+    - `cycle` ("¿cuándo cierra el ciclo?").
+  - `VoicePeriod.interval` usa la semana del calendario (lunes en Chile).
+  - `VoiceAnswers` arma cada respuesta en dos versiones: `text` para la pantalla y `speech` para leer en voz alta, con "45.980 pesos" en vez de "$45.980".
+- **Features:**
+  - botón **Preguntar** (`mic.circle`) junto a la pastilla de sincronización, en todas las pantallas que la tienen;
+  - `VoiceQuerySheet`: mantener presionado; responde con datos locales (stock operativo, encargos en borrador o confirmados, ventas no fallidas del periodo y último ciclo registrado);
+  - `VoiceSpeaker` (`AVSpeechSynthesizer`, voz `es-CL` si existe) lee las respuestas; se apaga con "Leer respuestas en voz alta" (`voice.spokenAnswers`) y se calla al empezar a escuchar.
+- **Ciclo:** todavía no hay fecha de cierre local. La respuesta lo dice y da el último ciclo registrado, hasta que se lea "Ciclo Actual" desde el home de minegocio (ver `natura-order-placement.md` §2.3).
+
 ## 6. Permisos y configuración
 
 En `project.yml` (`info.properties`):
@@ -200,7 +216,7 @@ NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar 
 | V1 | Núcleo | `Core/Voice`: números, segmentación, gramática de pedido de cliente, `ProductMatcher` + tests | ✅ 2026-11-26 |
 | V2 | Pedido de cliente por voz | `SpeechCaptureService` (local preferido), overlay con chips, botón en el editor, permisos | ✅ 2026-11-26 (sin probar en iPhone) |
 | V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo | ✅ 2026-11-26 (sin probar en iPhone) |
-| V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | — |
+| V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | ✅ 2026-11-26 (sin probar en iPhone) |
 | V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | — |
 | V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo | — |
 | V7 | Opcionales | App Intents / Atajos; respaldo con `FoundationModels` en equipos compatibles | — |

@@ -60,7 +60,9 @@ public enum CommandGrammar {
             return receivingCommands(segment)
         case .reconciliation:
             return reconciliationCommands(segment)
-        case .naturaDraft, .cart, .global:
+        case .global:
+            return queryCommands(segment)
+        case .naturaDraft, .cart:
             let text = VoiceText.joinRaw(segment)
             return text.isEmpty ? [] : [.unrecognized(text)]
         }
@@ -329,6 +331,54 @@ public enum CommandGrammar {
             return [.physicalCount(number.value)]
         }
         return [.unrecognized(VoiceText.joinRaw(words))]
+    }
+
+    // MARK: - Consultas
+
+    static let salesWords: Set<String> = ["vendi", "vendido", "vendimos", "vendiste", "venta", "ventas", "vendo"]
+    static let orderWords: Set<String> = [
+        "encargo", "encargos", "encargaron", "encargado", "pidio", "pidieron", "pedido", "pedidos", "pendiente", "pendientes",
+    ]
+    static let stockWords: Set<String> = [
+        "cuanto", "cuantos", "cuantas", "cuanta", "queda", "quedan", "quedaron", "tengo", "tenemos", "hay", "stock",
+        "inventario", "existencia", "existencias",
+    ]
+    static let queryFillers: Set<String> = [
+        "que", "me", "le", "de", "del", "el", "la", "los", "las", "tiene", "tengo", "hay", "cual", "cuales", "son", "en",
+        "a", "dime", "cuentame", "sabes", "mi", "mis", "unidades", "unidad", "todavia", "aun",
+    ]
+
+    /// "¿cuánto me queda de Kaiak?" · "¿qué me encargó Juan?" · "¿cuánto vendí esta semana?" · "¿cuándo cierra el ciclo?".
+    static func queryCommands(_ segment: [VoiceToken]) -> [VoiceCommand] {
+        let words = dropTrailingFillers(Array(segment.drop { $0.isSeparator || leadingFillers.contains($0.text) }))
+        guard !words.isEmpty else { return [] }
+        let texts = Set(words.map(\.text))
+
+        if texts.contains("ciclo") && texts.isDisjoint(with: salesWords) {
+            return [.query(.cycle)]
+        }
+        if !texts.isDisjoint(with: salesWords) {
+            return [.query(.sales(period(of: words)))]
+        }
+        if !texts.isDisjoint(with: orderWords) {
+            let name = words.filter { !orderWords.contains($0.text) && !queryFillers.contains($0.text) }
+            let spoken = VoiceText.joinRaw(name)
+            return spoken.isEmpty ? [.unrecognized(VoiceText.joinRaw(words))] : [.query(.customerOrders(name: spoken))]
+        }
+        let rest = words.filter { !stockWords.contains($0.text) && !queryFillers.contains($0.text) }
+        if let product = extractItem(rest).product {
+            return [.query(.stock(product))]
+        }
+        return [.unrecognized(VoiceText.joinRaw(words))]
+    }
+
+    static func period(of words: [VoiceToken]) -> VoicePeriod {
+        let texts = words.map(\.text)
+        let past = texts.contains("pasada") || texts.contains("pasado") || texts.contains("anterior")
+        if texts.contains("ayer") { return .yesterday }
+        if texts.contains("semana") { return past ? .lastWeek : .thisWeek }
+        if texts.contains("mes") { return past ? .lastMonth : .thisMonth }
+        return .today
     }
 
     // MARK: - Cantidad + producto

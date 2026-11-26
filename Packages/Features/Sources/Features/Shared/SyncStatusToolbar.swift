@@ -28,6 +28,9 @@ extension View {
             ToolbarItem(placement: .topBarLeading) {
                 SyncStatusToolbarItem(sellerId: sellerId)
             }
+            ToolbarItem(placement: .topBarLeading) {
+                VoiceQueryToolbarButton(sellerId: sellerId)
+            }
         }
     }
 }
