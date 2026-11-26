@@ -23,7 +23,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 
 ### V7 — Opcionales
 - App Intents / Atajos ("Nuevo pedido en MyNatura", "Stock de Kaiak en MyNatura"). Antes de prometerlo, **verificar que funcionan con la firma de Apple ID gratis** (Sideloadly).
-- Respaldo con `FoundationModels` (iOS 26, Apple Intelligence) para frases que la gramática no entiende.
+- ~~Respaldo con `FoundationModels`~~: **descartado por ahora**. El iPhone de uso es un **SE 3.ª generación** (A15, sin Apple Intelligence), así que el modelo local de Apple no está disponible. Si se quiere interpretación libre, la única vía es un modelo en la nube vía backend: opcional, solo con conexión y enviando el texto dictado (decisión pendiente).
 
 ### Sin etapa asignada
 - **Navegación por voz** ("ir a recepción", "abre el pedido de María"): está en §3, caso 7, del documento de voz, pero no en el plan.
@@ -41,7 +41,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 - Seis o más dígitos dictados seguidos sin "del" ("dos uno dos tres cuatro cinco") se toman como un solo código.
 - En recepción, "llegó todo" sin producto se aplica a la última línea mencionada.
 
-### Verificar en el iPhone (V2–V4)
+### Verificar en el iPhone (SE 3.ª generación, pantalla de 4,7")
 - Si `es-CL` tiene modelo local. Si no, qué variante toma o si aparece el aviso del servidor de Apple.
 - Que "mantener presionado" funcione dentro de las hojas, porque el gesto podría competir con el arrastre de la hoja.
 - Modo sin manos:
@@ -54,6 +54,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
   - que el micrófono funcione otra vez después de una respuesta leída.
 - Carro por voz: que al aplicar se abra el carro (tras cerrarse la hoja) y que el motivo aparezca cuando el precio dictado queda bajo el sugerido.
 - Precisión con nombres reales de clientes y productos, y con ruido de fondo.
+- Pantalla chica: que las hojas de dictado a media altura (`.medium`) dejen ver transcripción, chips y botón. Si no, abrirlas a pantalla completa.
 
 ---
 
