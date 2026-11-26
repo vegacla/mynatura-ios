@@ -16,3 +16,7 @@ Package.resolved
 # SO
 .DS_Store
 Thumbs.db
+
+# Capturas de red (HAR): traen cookies y datos personales, nunca se versionan
+docs/har/
+*.har
