@@ -63,6 +63,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 - **Captura de endpoints (la hace la consultora):** recorrido de §4.2 en minegocio con DevTools, guardando **Save all as HAR (sanitized)** fuera del repo, y **cancelar el pedido antes de cerrarlo**. De ahí salen rutas y DTOs para §5.2 (solo formas, sin valores). Incluye:
   - paso 0: de dónde sale "Ciclo Actual" en el home (HTML o XHR) y qué muestra el ⓘ;
   - pasos 17–19: ids del API de productos de la revista (`campaign_id`, `brochure_id`, `feed_id`), si trae puntos y ofertas, y el checkout por WhatsApp.
+- **Captura del login de GSP** (`unified-assistant-proposal.md` §6.2): desde una sesión limpia, minegocio → "Nuevo Pedido" → `gsp.natura.com/login`, para saber cómo se obtiene el `xAppToken`. El backend hoy no sabe nada de GSP.
 - **Ciclo vigente:** que el backend lea número y fechas del ciclo desde el home en cada login y los guarde por consultora. Lo usan la revista, el borrador y la respuesta de voz del ciclo.
 - **Etapas 1–6 de §9:**
   1. revista y catálogo para compartir;
