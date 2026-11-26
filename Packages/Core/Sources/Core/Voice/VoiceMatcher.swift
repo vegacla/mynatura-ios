@@ -75,14 +75,25 @@ enum VoiceMatching {
     ]
     static let honorifics: Set<String> = ["don", "dona", "senor", "senora", "senorita", "sr", "sra", "srta", "mi"]
 
+    private struct Ranked {
+        let order: Int
+        let score: VoiceScore
+    }
+
     static func rank(_ candidates: [VoiceCandidate], score: (VoiceCandidate) -> Double) -> [VoiceScore] {
-        candidates.enumerated()
-            .map { entry in (order: entry.offset, score: VoiceScore(id: entry.element.id, score: score(entry.element))) }
-            .filter { $0.score.score >= minimumScore }
-            .sorted { lhs, rhs in
-                lhs.score.score != rhs.score.score ? lhs.score.score > rhs.score.score : lhs.order < rhs.order
+        var ranked: [Ranked] = []
+        for (order, candidate) in candidates.enumerated() {
+            let value = score(candidate)
+            if value >= minimumScore {
+                ranked.append(Ranked(order: order, score: VoiceScore(id: candidate.id, score: value)))
             }
-            .map { $0.score }
+        }
+        // Mayor puntaje primero; en empate, el orden original (sort no es estable).
+        ranked.sort { lhs, rhs in
+            if lhs.score.score != rhs.score.score { return lhs.score.score > rhs.score.score }
+            return lhs.order < rhs.order
+        }
+        return ranked.map { $0.score }
     }
 
     static func resolve(_ ranked: [VoiceScore]) -> VoiceMatch {
