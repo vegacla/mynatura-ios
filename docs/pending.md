@@ -8,18 +8,16 @@
 
 ## 1. Voz (`voice-interaction-proposal.md`)
 
-Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada · V5 carro de venta.
+Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada · V5 carro de venta · V6 vocabulario propio.
 
 ### V5 — Borrador Natura
 - El carro de venta ya está hecho (§5.9 del documento de voz).
 - **Borrador del pedido Natura (bloqueado):** depende de que exista el borrador de `natura-order-placement.md`, cuyas etapas 1–2 requieren primero la captura de endpoints (§2 de este archivo).
   - Cuando exista: contexto `.naturaDraft` con "agrega cinco del 87654", "sube a tres el Ekos" y "¿cuántos puntos llevo?" contra el tope del nivel.
 
-### V6 — Vocabulario del negocio
-- Modelo de lenguaje personalizado (`SFCustomLanguageModelData`, iOS 17), generado en el iPhone desde el catálogo y la revista del ciclo:
-  - plantillas como `<cantidad> <producto>` y `llegaron <cantidad> del <código>`;
-  - pronunciaciones propias (Ekos, Kaiak, Tododia…).
-- Solo funciona con reconocimiento local.
+### V6 — Vocabulario del negocio (hecho, §5.10 del documento de voz)
+- Pendiente: sumar los productos de la **revista del ciclo** cuando la app la tenga (etapa 1 del pedido Natura).
+- Pendiente: pronunciaciones propias (`insert(term:)`, X-SAMPA), solo si las pruebas muestran marcas mal reconocidas.
 
 ### V7 — Opcionales
 - App Intents / Atajos ("Nuevo pedido en MyNatura", "Stock de Kaiak en MyNatura"). Antes de prometerlo, **verificar que funcionan con la firma de Apple ID gratis** (Sideloadly).
@@ -54,6 +52,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
   - que el micrófono funcione otra vez después de una respuesta leída.
 - Carro por voz: que al aplicar se abra el carro (tras cerrarse la hoja) y que el motivo aparezca cuando el precio dictado queda bajo el sugerido.
 - Precisión con nombres reales de clientes y productos, y con ruido de fondo.
+- Vocabulario propio: que aparezca el ícono del libro tras abrir una hoja de voz (con reconocimiento local), cuánto tarda en armarse la primera vez y si mejora "Ekos", "Kaiak", "Tododia" y los nombres de clientes.
 - Pantalla chica: que las hojas de dictado a media altura (`.medium`) dejen ver transcripción, chips y botón. Si no, abrirlas a pantalla completa.
 
 ---

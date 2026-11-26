@@ -1,6 +1,6 @@
 # Propuesta — Interacción por voz en MyNatura iOS
 
-> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) V3 (recepción, conciliación y modo continuo), V4 (consultas con respuesta hablada) y V5 en su parte del carro implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
+> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) V3 (recepción, conciliación y modo continuo), V4 (consultas con respuesta hablada), V5 en su parte del carro y V6 (vocabulario propio) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
 
 ---
 
@@ -187,6 +187,26 @@ public enum ProductRef: Equatable, Sendable { case sku(String), text(String) }
 - **Sin "Deshacer dictado"** en el carro: lo aplicado se corrige editando el carro. "Deshacer" dicho quita el último chip del dictado en curso.
 - **Pendiente de V5:** el contexto `.naturaDraft`, que espera al borrador del pedido Natura (`pending.md`).
 
+## 5.10 Implementación V6 (vocabulario propio)
+
+- **Core** (`VoiceTraining.swift`):
+  - frases de entrenamiento a partir del catálogo, los códigos y los clientes:
+    - nombre completo y **nombre corto** sin palabras genéricas ("Desodorante Colonia Kaiak Clásico" → "Kaiak Clásico");
+    - "dos Kaiak Clásico", "llegaron tres del …", "¿cuánto me queda de …?", "quita el …", "llegó completo el …";
+    - "para Ana Rojas", "¿qué me encargó …?";
+    - "… del 12345";
+    - las líneas Natura y los comandos fijos ("otro más", "conté siete", "nueve noventa"…).
+  - Sin repetidos, con tope de 400 productos, 200 clientes y 6000 frases.
+  - `version(of:)` es un hash FNV-1a estable: el orden de las entradas no lo cambia, y solo cambia si cambian las frases.
+- **Features:**
+  - `VoiceModelBuilder` arma el modelo con `SFCustomLanguageModelData` (`insert(phraseCount:)`), `export(to:)` y `SFSpeechLanguageModel.prepareCustomLanguageModel(for:clientIdentifier:configuration:)`;
+  - lo guarda en `Caches/VoiceModel/<idioma>-<versión>/`, lo reutiliza mientras las frases no cambien y borra las versiones anteriores;
+  - `SpeechCaptureService.prepareCustomModel` lo prepara solo si hay permiso de reconocimiento y modelo en el dispositivo, y `request.customizedLanguageModel` lo usa solo con reconocimiento local;
+  - todas las hojas de voz (pedido de cliente, recepción, conciliación, carro y consultas) lo preparan al abrirse con **todo** el catálogo y los clientes (`VoiceModelWarmup`), así comparten un único modelo;
+  - la primera vez puede tardar unos segundos; mientras tanto se dicta sin él.
+  - Ícono `text.book.closed` en "Lo que escuché" cuando está activo.
+- **No incluido:** pronunciaciones propias (`insert(term:)` con fonemas X-SAMPA). Se suman si las pruebas muestran que alguna marca se sigue reconociendo mal.
+
 ## 6. Permisos y configuración
 
 En `project.yml` (`info.properties`):
@@ -232,7 +252,7 @@ NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar 
 | V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo | ✅ 2026-11-26 (sin probar en iPhone) |
 | V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | ✅ 2026-11-26 (sin probar en iPhone) |
 | V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | 🟡 carro ✅ 2026-11-26 (sin probar en iPhone); borrador Natura pendiente |
-| V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo | — |
+| V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo | ✅ 2026-11-26 (sin probar en iPhone) |
 | V7 | Opcionales | App Intents / Atajos; respaldo con `FoundationModels` en equipos compatibles | — |
 
 ---

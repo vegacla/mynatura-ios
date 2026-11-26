@@ -114,6 +114,7 @@ private struct ReconciliationSection: View {
     @State private var counted = 0
     @State private var note = ""
     @State private var savedMessage: String?
+    @Environment(\.modelContext) private var context
     @State private var speech = SpeechCaptureService()
     @State private var voiceMessage: String?
     @AppStorage("voice.allowServerRecognition") private var allowServer = false
@@ -166,6 +167,7 @@ private struct ReconciliationSection: View {
             if let utterance { applyDictation(utterance.text) }
         }
         .onDisappear { speech.cancel() }
+        .task { await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context) }
     }
 
     private func startDictation() {

@@ -77,6 +77,9 @@ struct CartVoiceSheet: View {
                     HStack {
                         Text("Lo que escuché")
                         Spacer()
+                        if speech.usesCustomModel {
+                            Image(systemName: "text.book.closed").accessibilityLabel("Vocabulario propio activo")
+                        }
                         if speech.usesServer {
                             Image(systemName: "icloud").accessibilityLabel("Reconocimiento en servidores de Apple")
                         }
@@ -152,6 +155,7 @@ struct CartVoiceSheet: View {
                 if let utterance { commit(utterance.text) }
             }
             .onDisappear { speech.cancel() }
+            .task { await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context) }
         }
     }
 

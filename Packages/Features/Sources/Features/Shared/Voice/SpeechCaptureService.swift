@@ -1,4 +1,5 @@
 import AVFoundation
+import Core
 import Foundation
 import Observation
 import Speech
@@ -42,6 +43,20 @@ final class SpeechCaptureService {
     /// El reconocimiento en curso usa servidores de Apple.
     private(set) var usesServer = false
     private(set) var isContinuous = false
+    /// El reconocimiento en curso usa el vocabulario propio (V6).
+    private(set) var usesCustomModel = false
+
+    /// Modelos propios ya preparados, por idioma (se comparten entre pantallas).
+    private static var customModels: [String: CustomModelFiles] = [:]
+    private static var buildingModels: Set<String> = []
+
+    private struct ModelInputs: Equatable {
+        let productNames: [String]
+        let productCodes: [String]
+        let customerNames: [String]
+    }
+
+    private var modelInputs: ModelInputs?
 
     private let pipeline = SpeechPipeline()
     private var session: RecognitionSession?
@@ -72,9 +87,15 @@ final class SpeechCaptureService {
                 : "Este iPhone no tiene reconocimiento de voz en español sin conexión. Puedes permitir los servidores de Apple abajo.")
             return
         }
+        let customModel = choice.onDevice ? Self.customModels[choice.recognizer.locale.identifier] : nil
         session = RecognitionSession(recognizer: choice.recognizer, onDevice: choice.onDevice,
-                                     contextualStrings: contextualStrings)
+                                     contextualStrings: contextualStrings, customModel: customModel)
         usesServer = !choice.onDevice
+        usesCustomModel = customModel != nil
+        if customModel == nil, modelInputs != nil {
+            // Recién se dio el permiso: preparar el vocabulario propio para las próximas frases.
+            Task { await self.buildCustomModelIfPossible() }
+        }
 
         if beginRecognition() {
             state = .listening
@@ -114,6 +135,33 @@ final class SpeechCaptureService {
         pipeline.cancel()
         state = .idle
         transcript = ""
+    }
+
+    // MARK: Vocabulario propio (V6)
+
+    /// Prepara (o reutiliza) el modelo de lenguaje propio con el catálogo y los clientes.
+    /// Requiere permiso de reconocimiento y modelo en el dispositivo; si no, no hace nada.
+    func prepareCustomModel(productNames: [String], productCodes: [String], customerNames: [String]) async {
+        modelInputs = ModelInputs(productNames: productNames, productCodes: productCodes, customerNames: customerNames)
+        await buildCustomModelIfPossible()
+    }
+
+    private func buildCustomModelIfPossible() async {
+        guard let inputs = modelInputs, SFSpeechRecognizer.authorizationStatus() == .authorized,
+              let choice = Self.chooseRecognizer(allowServer: false), choice.onDevice else { return }
+        let localeIdentifier = choice.recognizer.locale.identifier
+        let phrases = VoiceTraining.phrases(productNames: inputs.productNames, productCodes: inputs.productCodes,
+                                            customerNames: inputs.customerNames)
+        let version = VoiceTraining.version(of: phrases)
+        if Self.customModels[localeIdentifier]?.version == version { return }
+        let key = localeIdentifier + "-" + version
+        guard !Self.buildingModels.contains(key) else { return }
+        Self.buildingModels.insert(key)
+        defer { Self.buildingModels.remove(key) }
+        if let files = try? await VoiceModelBuilder.build(localeIdentifier: localeIdentifier, phrases: phrases,
+                                                          version: version) {
+            Self.customModels[localeIdentifier] = files
+        }
     }
 
     // MARK: Continuo
@@ -201,6 +249,7 @@ final class SpeechCaptureService {
                 recognizer: session.recognizer,
                 onDevice: session.onDevice,
                 contextualStrings: session.contextualStrings,
+                customModel: session.customModel,
                 onResult: { text, isFinal in
                     Task { @MainActor in target.service?.receive(text, isFinal: isFinal, generation: current) }
                 },
@@ -276,6 +325,7 @@ final class SpeechCaptureService {
         let recognizer: SFSpeechRecognizer
         let onDevice: Bool
         let contextualStrings: [String]
+        let customModel: CustomModelFiles?
     }
 
     private static func chooseRecognizer(allowServer: Bool) -> RecognizerChoice? {
@@ -315,6 +365,7 @@ final class SpeechPipeline: @unchecked Sendable {
     }
 
     func start(recognizer: SFSpeechRecognizer, onDevice: Bool, contextualStrings: [String],
+               customModel: CustomModelFiles? = nil,
                onResult: @escaping @Sendable (String, Bool) -> Void,
                onError: @escaping @Sendable (String) -> Void) throws {
         cancel()
@@ -329,6 +380,9 @@ final class SpeechPipeline: @unchecked Sendable {
         request.contextualStrings = contextualStrings
         request.taskHint = .dictation
         request.addsPunctuation = true
+        if onDevice, let customModel {
+            request.customizedLanguageModel = VoiceModelBuilder.configuration(for: customModel)
+        }
 
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)

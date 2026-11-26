@@ -38,6 +38,9 @@ struct VoiceQuerySheet: View {
                     HStack {
                         Text("Pregunta")
                         Spacer()
+                        if speech.usesCustomModel {
+                            Image(systemName: "text.book.closed").accessibilityLabel("Vocabulario propio activo")
+                        }
                         if speech.usesServer {
                             Image(systemName: "icloud").accessibilityLabel("Reconocimiento en servidores de Apple")
                         }
@@ -99,6 +102,7 @@ struct VoiceQuerySheet: View {
                 speech.cancel()
                 speaker.stop()
             }
+            .task { await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context) }
         }
     }
 

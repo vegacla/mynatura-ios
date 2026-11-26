@@ -10,6 +10,7 @@ import Sync
 struct ReceivingVoiceSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SyncEngine.self) private var sync
+    @Environment(\.modelContext) private var context
     @AppStorage("voice.allowServerRecognition") private var allowServer = false
     @State private var speech = SpeechCaptureService()
     @State private var items: [VoiceProposalItem] = []
@@ -114,6 +115,7 @@ struct ReceivingVoiceSheet: View {
                 if let utterance { commit(utterance.text) }
             }
             .onDisappear { speech.cancel() }
+            .task { await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context) }
         }
     }
 
@@ -137,6 +139,9 @@ struct ReceivingVoiceSheet: View {
             HStack {
                 Text("Lo que escuché")
                 Spacer()
+                if speech.usesCustomModel {
+                    Image(systemName: "text.book.closed").accessibilityLabel("Vocabulario propio activo")
+                }
                 if speech.usesServer {
                     Image(systemName: "icloud").accessibilityLabel("Reconocimiento en servidores de Apple")
                 }
