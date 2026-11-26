@@ -56,7 +56,7 @@ struct VoiceMatcherTests {
         #expect(ProductMatcher.resolve(.text("mamá y bebé"), in: withAlias) == .found("mb"))
     }
 
-    @Test func customers() {
+    @Test func customerNames() {
         #expect(CustomerMatcher.resolve(name: "juan soto", in: customers) == .found("juan"))
         #expect(CustomerMatcher.resolve(name: "la señora Ana", in: customers) == .found("ana"))
         #expect(CustomerMatcher.resolve(name: "Pedro", in: customers) == .notFound)
