@@ -205,12 +205,12 @@ Solo formas; sin valores. Todo se consume **vía backend**: la app nunca habla c
   - `statusIds[]` (filtrar por estado);
   - `totalPoints`, `invoiceNumber`, `approvalDueDate`, `orderDueDate`, `orderPaymentStatus`, `orderCycleDay`, `channelId`, `structureCode`.
 - `GET /cards` → tarjetas informativas del home (`category`, `dateStart`, `dateEnd`, `metadata`…). Posibles avisos para mostrar en la tarjeta de Cuenta.
-- **"Ciclo Actual"** no está en el HTML del home: se arma en el navegador. La fuente más directa capturada es `summary.orderCycle { cycleCode, dateStart, dateEnd }` del carro GSP (§6.3).
+- **"Ciclo Actual":** el texto no está en el HTML del home (se arma en el navegador), pero el HTML trae `var query_cycle = [AAAACC]`, que en la captura vale el ciclo vigente (202619). Es el **número de ciclo sin GSP**, con la sesión de minegocio que el backend ya tiene. Las **fechas** de inicio y fin están en `summary.orderCycle { cycleCode, dateStart, dateEnd }` del carro GSP (§6.3).
 
 ### 6.2 Login
 - `POST authenticator-cognito-apigw…/authentication-api/signin` → `{ sso_token, challengeRequired, daysExpirePassword, authToken }`. Ya implementado en el backend (`natura-http-auth.ts`): usa **solo `sso_token`** → `natura-callback` → cookie `wcmn_session` (minegocio). El `authToken` (36 caracteres, opaco) **no se usa** en ninguna parte del backend.
 - **GSP usa otra credencial:** encabezados `x-app-token` / `xapptoken` (JWT HS256 de unos 3400 caracteres, vigencia de 24 h, claims `compressed`, `filePath`, `iat`, `exp`), `sessionidentifier`, `http_username`, `application` y `country`. No usa `Authorization` ni cookies. Se renueva con `profileGetRefreshToken`, que devuelve `xAppToken`.
-- **Cómo se obtiene el primer `xAppToken`: no capturado.** El botón "Nuevo Pedido" del home lleva a `https://gsp.natura.com/login`; la captura de GSP empezó con la sesión ya abierta. El backend no tiene ningún conocimiento de GSP: ni el login por HTTP ni el respaldo con Playwright pasan por ahí.
+- **Cómo se obtiene el primer `xAppToken`: no capturado.** "Nuevo Pedido" es un enlace simple `<a href="https://gsp.natura.com/login?country=CL" target="_blank">`: **no lleva token** y abre una pestaña nueva, que DevTools no graba desde la pestaña original. GSP tiene su propio paso de login, quizás reutilizando la sesión de `natura-auth`. El backend no tiene ningún conocimiento de GSP: ni el login por HTTP ni el respaldo con Playwright pasan por ahí.
 
 ### 6.3 GSP — pedido nuevo (`gsp-apigw-mfe.prd.naturacloud.com/graphql/frontend/graphql`)
 El pedido **no se arma en minegocio**: se arma en la app GSP, sobre GraphQL. Operaciones observadas:
