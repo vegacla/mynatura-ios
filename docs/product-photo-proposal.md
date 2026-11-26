@@ -1,6 +1,6 @@
 # Propuesta — Foto de un producto → reconocerlo → elegir acción → ejecutar
 
-> **Estado:** P1 (núcleo) y P2 (foto → ficha → acciones) implementadas el 2026-11-26, sin probar en iPhone; P3 pendiente.
+> **Estado:** P1 (núcleo), P2 (foto → ficha → acciones) y P3 (inventario de repisa, voz y Atajo) implementadas el 2026-11-26, sin probar en iPhone.
 > Respeta los principios de `ios-app-design.md`: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones). Considera el equipo de uso: **iPhone SE 3.ª gen.**, A15, pantalla de 4,7" y sin Apple Intelligence.
 > Relacionados: `voice-interaction-proposal.md` (comparte la resolución de productos, los chips y la regla "la app propone, la pantalla confirma") y `natura-order-placement.md` (revista del ciclo).
 
@@ -129,7 +129,7 @@ Core (solo Foundation)
 |---|---|---|
 | P1 ✅ | Núcleo | `ProductRecognizer` (`naturaCodes`, `rank`, `resolve`) y `ProductActions` en `Core`, con tests |
 | P2 ✅ | Foto → ficha → acciones | `PhotoAnalyzer` (código de barras + OCR), hoja con candidatos y botones: inventario, asociar EAN, venta, pedido de cliente, recibir, ficha |
-| P3 | Ráfaga y voz | Inventario de repisa foto a foto; comandos de voz en la ficha; Atajo "Foto de producto" |
+| P3 ✅ | Ráfaga y voz | Inventario de repisa foto a foto; comandos de voz en la ficha; Atajo "Foto de producto" |
 
 Todo funciona sin conexión y sin backend nuevo.
 

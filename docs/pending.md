@@ -52,6 +52,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
   - que el micrófono funcione otra vez después de una respuesta leída.
 - Carro por voz: que al aplicar se abra el carro (tras cerrarse la hoja) y que el motivo aparezca cuando el precio dictado queda bajo el sugerido.
 - Precisión con nombres reales de clientes y productos, y con ruido de fondo.
+- Foto de producto (`product-photo-proposal.md`, P1–P3): lectura de EAN y código Natura en envases reales, con luz y reflejos; nombre de la etiqueta en español o portugués; botones de la ficha; inventario de repisa; Atajo "Foto de producto en MyNatura".
 - Vocabulario propio: que aparezca el ícono del libro tras abrir una hoja de voz (con reconocimiento local), cuánto tarda en armarse la primera vez y si mejora "Ekos", "Kaiak", "Tododia" y los nombres de clientes.
 - Pantalla chica: que las hojas de dictado a media altura (`.medium`) dejen ver transcripción, chips y botón. Si no, abrirlas a pantalla completa.
 

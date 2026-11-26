@@ -5,11 +5,12 @@ public enum AppTab: Hashable, Sendable {
     case sell, products, receiving, customers, settings
 }
 
-/// Acción de voz pedida desde fuera de la app (Atajos / Siri, V7).
+/// Acción pedida desde fuera de la app (Atajos / Siri, V7): voz o foto de producto.
 public enum VoiceLaunch: String, Identifiable, Hashable, Sendable {
     case ask
     case dictateSale
     case newCustomerOrder
+    case productPhoto
 
     public var id: String { rawValue }
 }
@@ -32,6 +33,7 @@ public final class AppRouter {
         case .ask: break
         case .dictateSale: tab = .sell
         case .newCustomerOrder: tab = .customers
+        case .productPhoto: break
         }
         pendingVoice = voice
     }
@@ -57,6 +59,8 @@ public struct VoiceLaunchSheet: View {
             NavigationStack {
                 CustomerOrderEditor(sellerId: sellerId, orderId: nil, startDictating: true)
             }
+        case .productPhoto:
+            ProductPhotoSheet(sellerId: sellerId)
         }
     }
 }

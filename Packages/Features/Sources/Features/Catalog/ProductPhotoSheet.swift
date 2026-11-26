@@ -33,6 +33,18 @@ struct ProductPhotoSheet: View {
     @State private var choosingOrder = false
     @State private var newOrder: NewOrderRequest?
     @State private var creating: CreateRequest?
+    @State private var shelfMode = false
+    @State private var shelfRows: [ShelfRow] = []
+    @State private var speech = SpeechCaptureService()
+    @State private var highlighted: String?
+    @AppStorage("voice.allowServerRecognition") private var allowServer = false
+
+    /// Fila del inventario de repisa (P3): un producto por foto, con su conteo.
+    struct ShelfRow: Identifiable, Equatable {
+        let productId: String
+        var counted: Int
+        var id: String { productId }
+    }
 
     struct NewOrderRequest: Identifiable {
         let productId: String
@@ -82,10 +94,12 @@ struct ProductPhotoSheet: View {
                 }
                 if let product {
                     productCard(product)
-                    actionsSection(product)
+                    if !shelfMode { actionsSection(product) }
                 } else if let result {
                     unresolvedSection(result)
                 }
+                if shelfMode { shelfSection }
+                if product != nil || !shelfRows.isEmpty { voiceSection }
             }
             .navigationTitle("Foto de producto")
             .navigationBarTitleDisplayMode(.inline)
@@ -125,6 +139,14 @@ struct ProductPhotoSheet: View {
                     CustomerOrderEditor(sellerId: sellerId, orderId: nil, initialProductId: request.productId)
                 }
             }
+            .onChange(of: productId) { _, id in
+                if shelfMode, let id { addShelfRow(id) }
+            }
+            .onChange(of: speech.lastUtterance) { _, utterance in
+                if let utterance { handleVoice(utterance.text) }
+            }
+            .task { await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context) }
+            .onDisappear { speech.cancel() }
             .sheet(item: $creating) { request in
                 QuickProductSheet(sellerId: sellerId, initialSku: request.sku, initialName: request.name) { id in
                     productId = id
@@ -138,6 +160,7 @@ struct ProductPhotoSheet: View {
 
     private var captureSection: some View {
         Section {
+            Toggle("Inventario de repisa (foto a foto)", isOn: $shelfMode)
             if let image {
                 Image(uiImage: image)
                     .resizable()
@@ -160,7 +183,54 @@ struct ProductPhotoSheet: View {
             }
             .disabled(analyzing)
         } footer: {
-            Text("Apunta al código de barras o a la etiqueta. La foto se lee en el iPhone y no se guarda.")
+            Text(shelfMode
+                 ? "Cada producto reconocido se suma al conteo. Ajusta con los botones o di “conté siete”, y guarda todo al final."
+                 : "Apunta al código de barras o a la etiqueta. La foto se lee en el iPhone y no se guarda.")
+        }
+    }
+
+    private var shelfSection: some View {
+        Section {
+            if shelfRows.isEmpty {
+                Text("Toma la foto del primer producto.").foregroundStyle(.secondary)
+            }
+            ForEach($shelfRows) { $row in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(products.first { $0.id == row.productId }?.name ?? row.productId).font(.subheadline.weight(.medium))
+                    QuantityStepper("Conteo (sistema \(available(row.productId)))", value: $row.counted, in: 0...9999)
+                }
+            }
+            .onDelete { shelfRows.remove(atOffsets: $0) }
+            if !shelfRows.isEmpty {
+                Button("Guardar \(shelfRows.count) conciliación(es)") { saveShelf() }
+                    .buttonStyle(.borderedProminent)
+            }
+        } header: {
+            Text("Conteo de repisa (\(shelfRows.count))")
+        }
+    }
+
+    private var voiceSection: some View {
+        Section {
+            HoldToTalkButton(isListening: speech.isListening, onPress: {
+                Task { await speech.start(contextualStrings: [], allowServer: allowServer) }
+            }, onRelease: { speech.stop() })
+            .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+            if !speech.transcript.isEmpty {
+                Text(speech.transcript).font(.footnote)
+            }
+            if case .failed(let error) = speech.state {
+                AlertBanner(error, tone: .warning)
+                if !allowServer {
+                    Toggle("Permitir reconocimiento en servidores de Apple", isOn: $allowServer)
+                }
+            }
+        } header: {
+            Text("Por voz")
+        } footer: {
+            Text(shelfMode
+                 ? "“Conté siete” ajusta el último producto del conteo."
+                 : "“Conté siete”, “a la venta”, “al pedido”, “asocia el código”, “recíbelo”, “ver ficha”. Se resalta el botón y tú confirmas.")
         }
     }
 
@@ -212,15 +282,19 @@ struct ProductPhotoSheet: View {
     }
 
     private func actionsSection(_ product: CatalogProduct) -> some View {
-        let actionContext = ProductActionContext(
-            isSellable: product.isSellable, available: available(product.id),
-            unknownBarcodes: (result?.unknownBarcodes ?? []).filter { !product.barcodes.map(Normalize.ean).contains($0) },
-            receiving: receivingOpportunities(for: product))
-        return Section("¿Qué quieres hacer?") {
-            ForEach(ProductActions.available(for: actionContext)) { action in
+        Section("¿Qué quieres hacer?") {
+            ForEach(currentActions(product)) { action in
                 actionRow(action, product: product)
+                    .listRowBackground(highlighted == action.id ? Color.accentColor.opacity(0.15) : nil)
             }
         }
+    }
+
+    private func currentActions(_ product: CatalogProduct) -> [ProductAction] {
+        ProductActions.available(for: ProductActionContext(
+            isSellable: product.isSellable, available: available(product.id),
+            unknownBarcodes: (result?.unknownBarcodes ?? []).filter { !product.barcodes.map(Normalize.ean).contains($0) },
+            receiving: receivingOpportunities(for: product)))
     }
 
     @ViewBuilder
@@ -324,6 +398,7 @@ struct ProductPhotoSheet: View {
         message = nil
         addedToSale = false
         showingInventory = false
+        highlighted = nil
         Task {
             do {
                 let read = try await PhotoAnalyzer.analyze(picked)
@@ -364,9 +439,69 @@ struct ProductPhotoSheet: View {
         }
     }
 
+    // MARK: Inventario de repisa y voz (P3)
+
+    private func addShelfRow(_ id: String) {
+        let name = products.first { $0.id == id }?.name ?? id
+        if shelfRows.contains(where: { $0.productId == id }) {
+            message = ("\(name) ya está en el conteo.", false)
+            return
+        }
+        shelfRows.append(ShelfRow(productId: id, counted: available(id)))
+        message = ("Agregado al conteo: \(name). Ajusta o toma la siguiente foto.", false)
+    }
+
+    private func saveShelf() {
+        for row in shelfRows {
+            sync.createReconciliation(sellerId: sellerId, productId: row.productId, counted: row.counted,
+                                      note: "Inventario por foto")
+        }
+        message = ("Guardadas \(shelfRows.count) conciliación(es).", false)
+        shelfRows = []
+        Haptics.success()
+    }
+
+    /// La voz elige o prepara el botón; ejecutar sigue siendo un toque.
+    private func handleVoice(_ text: String) {
+        guard let intent = ProductActionVoice.intent(for: text) else {
+            message = ("No entendí “\(text)”.", true)
+            Haptics.error()
+            return
+        }
+        if shelfMode {
+            if case .inventory(let count?) = intent, let index = shelfRows.indices.last {
+                shelfRows[index].counted = min(max(count, 0), 9999)
+                message = ("Conteo: \(count). Guarda al terminar la repisa.", false)
+                Haptics.tap()
+            } else {
+                message = ("En el conteo de repisa di, por ejemplo, “conté siete”.", true)
+            }
+            return
+        }
+        guard let product else {
+            message = ("Primero toma la foto del producto.", true)
+            return
+        }
+        guard let action = ProductActionVoice.action(for: intent, in: currentActions(product)) else {
+            message = ("Eso no aplica a \(product.name).", true)
+            Haptics.error()
+            return
+        }
+        highlighted = action.id
+        if case .inventory(let count) = intent {
+            counted = min(max(count ?? available(product.id), 0), 9999)
+            showingInventory = true
+            message = ("Conteo listo: revisa y toca “Guardar conciliación”.", false)
+        } else {
+            message = ("Toca el botón resaltado para confirmar.", false)
+        }
+        Haptics.tap()
+    }
+
     // MARK: Acciones (las de siempre)
 
     private func saveInventory(_ product: CatalogProduct) {
+        highlighted = nil
         sync.createReconciliation(sellerId: sellerId, productId: product.id, counted: counted, note: countNote)
         countNote = ""
         showingInventory = false
@@ -375,6 +510,7 @@ struct ProductPhotoSheet: View {
     }
 
     private func link(_ ean: String, to product: CatalogProduct) {
+        highlighted = nil
         if let error = sync.addBarcode(sellerId: sellerId, productId: product.id, ean: ean) {
             message = (error.message, true)
             Haptics.error()
@@ -385,6 +521,7 @@ struct ProductPhotoSheet: View {
     }
 
     private func addToSale(_ product: CatalogProduct) {
+        highlighted = nil
         if Cart.add(product, available: available(product.id), sellerId: sellerId, context: context) {
             addedToSale = true
             message = ("Agregado a la venta: \(product.name).", false)
@@ -396,6 +533,7 @@ struct ProductPhotoSheet: View {
     }
 
     private func add(_ product: CatalogProduct, to order: CustomerOrder) {
+        highlighted = nil
         var lines = order.lines ?? []
         if let index = lines.firstIndex(where: { $0.sellerProductId == product.id }) {
             lines[index].quantity += 1
@@ -416,6 +554,7 @@ struct ProductPhotoSheet: View {
     }
 
     private func receive(_ opportunity: ReceivingOpportunity) {
+        highlighted = nil
         let lineId = opportunity.lineId
         guard let line = try? context.fetch(FetchDescriptor<NaturaOrderLine>(predicate: #Predicate { $0.id == lineId })).first else {
             return

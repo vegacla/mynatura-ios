@@ -47,6 +47,20 @@ struct NewCustomerOrderIntent: AppIntent {
     }
 }
 
+struct ProductPhotoIntent: AppIntent {
+    static var title: LocalizedStringResource { "Foto de producto" }
+    static var description: IntentDescription {
+        IntentDescription("Abre la cámara para reconocer un producto y elegir qué hacer con él.")
+    }
+    static var openAppWhenRun: Bool { true }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        AppRouter.shared.launch(.productPhoto)
+        return .result()
+    }
+}
+
 struct MyNaturaShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
@@ -73,5 +87,13 @@ struct MyNaturaShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Nuevo pedido",
             systemImageName: "person.badge.plus")
+        AppShortcut(
+            intent: ProductPhotoIntent(),
+            phrases: [
+                "Foto de producto en \(.applicationName)",
+                "Reconocer producto en \(.applicationName)",
+            ],
+            shortTitle: "Foto de producto",
+            systemImageName: "camera.viewfinder")
     }
 }

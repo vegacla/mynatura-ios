@@ -45,7 +45,7 @@ struct RootTabView: View {
         .onChange(of: router.pendingVoice) { _, _ in consumePendingVoice() }
         .sheet(item: $voiceLaunch) { launch in
             VoiceLaunchSheet(launch: launch, sellerId: sellerId)
-                .presentationDetents(launch == .newCustomerOrder ? [.large] : [.medium, .large])
+                .presentationDetents([.newCustomerOrder, .productPhoto].contains(launch) ? [.large] : [.medium, .large])
         }
     }
 
