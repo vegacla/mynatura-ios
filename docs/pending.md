@@ -6,6 +6,10 @@
 
 ---
 
+## 0. Arquitectura
+
+- **Decidido (2026-11-26): app local primero, sin backend propio.** Plan en `local-first-migration.md` (etapas M1–M8), incluye costo cero para regalos. Mientras dure la migración, el backend sigue funcionando.
+
 ## 1. Voz (`voice-interaction-proposal.md`)
 
 Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada · V5 carro de venta · V6 vocabulario propio · V7 Atajos de Siri.
