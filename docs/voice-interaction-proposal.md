@@ -1,6 +1,6 @@
 # Propuesta — Interacción por voz en MyNatura iOS
 
-> **Estado:** V1 (núcleo) implementada en `Packages/Core/Sources/Core/Voice/`; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
+> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`) y V2 (dictado en el editor de pedido de cliente) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
 
 ---
 
@@ -124,6 +124,20 @@ public enum ProductRef: Equatable, Sendable { case sku(String), text(String) }
 
 ---
 
+## 5.6 Implementación V2
+
+- **Core** (`VoiceProposal.swift`, probado en Linux):
+  - `VoiceProposalBuilder` convierte comandos en chips (`VoiceAction`), resolviendo productos y clientes.
+  - `VoiceOrderApplier` los aplica a un `VoiceOrderState` puro.
+  - `VoiceVocabulary` arma los `contextualStrings`: líneas Natura, clientes y productos, sin repetidos y con tope de 100.
+- **Features:**
+  - `Shared/Voice/SpeechCaptureService` (`@MainActor`): prueba `es-CL`, `es-419`, `es-US`, `es-MX` y `es-ES` con modelo local. Usa el servidor de Apple solo si se activó "Permitir reconocimiento en servidores de Apple" (`@AppStorage("voice.allowServerRecognition")`, apagado por defecto).
+  - `SpeechPipeline` maneja audio y Speech fuera del actor principal; al MainActor solo pasan textos.
+  - `HoldToTalkButton`: mantener presionado para hablar.
+  - `CustomerOrderVoiceSheet`: transcripción en vivo, chips con "Elegir…" para los ambiguos y deslizar para quitar. Cada frase se suma a las anteriores; nada cambia hasta tocar **Aplicar**.
+  - `CustomerOrderEditor`: botón **Dictar** en la barra inferior, mensaje con lo aplicado y **Deshacer dictado** (restaura el estado previo). "Deshacer" dicho sin chips pendientes también lo usa.
+- **Pendiente para V3+:** modo continuo, respuestas habladas y la sección Ajustes → Voz (hoy el permiso de servidor se ofrece en la misma hoja cuando falta el modelo local).
+
 ## 6. Permisos y configuración
 
 En `project.yml` (`info.properties`):
@@ -165,7 +179,7 @@ NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar 
 | # | Etapa | Entregable | Estado |
 |---|---|---|---|
 | V1 | Núcleo | `Core/Voice`: números, segmentación, gramática de pedido de cliente, `ProductMatcher` + tests | ✅ 2026-11-26 |
-| V2 | Pedido de cliente por voz | `SpeechCaptureService` (local preferido), overlay con chips, botón en el editor, permisos | — |
+| V2 | Pedido de cliente por voz | `SpeechCaptureService` (local preferido), overlay con chips, botón en el editor, permisos | ✅ 2026-11-26 (sin probar en iPhone) |
 | V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo | — |
 | V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | — |
 | V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | — |

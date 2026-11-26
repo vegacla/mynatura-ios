@@ -28,6 +28,18 @@ struct CustomerOrderEditor: View {
     @State private var quickName = ""
     @State private var errorMessage: String?
     @State private var savedMessage: String?
+    @State private var showVoice = false
+    @State private var voiceUndo: VoiceUndoSnapshot?
+    @State private var voiceMessage: String?
+
+    /// Estado previo al último dictado aplicado, para "Deshacer dictado".
+    private struct VoiceUndoSnapshot {
+        let customerName: String
+        let selectedCustomerId: String?
+        let cycleText: String
+        let note: String
+        let lines: [CustomerOrderLineSnapshot]
+    }
 
     init(sellerId: String, orderId: String?) {
         self.sellerId = sellerId
@@ -54,6 +66,14 @@ struct CustomerOrderEditor: View {
                 }
                 TextField("Nota", text: $note, axis: .vertical)
             }
+            if let voiceMessage {
+                Section {
+                    AlertBanner(voiceMessage, tone: .info, systemImage: "mic.fill")
+                    if voiceUndo != nil {
+                        Button("Deshacer dictado", role: .destructive) { undoVoice() }
+                    }
+                }
+            }
             productSearchSection
             linesSection
             if let errorMessage { Section { AlertBanner(errorMessage, tone: .danger) } }
@@ -70,6 +90,27 @@ struct CustomerOrderEditor: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("Guardar", action: save) }
+            ToolbarItem(placement: .bottomBar) {
+                Button {
+                    showVoice = true
+                } label: {
+                    Label("Dictar", systemImage: "mic.fill")
+                        .labelStyle(.titleAndIcon)
+                }
+            }
+        }
+        .sheet(isPresented: $showVoice) {
+            CustomerOrderVoiceSheet(
+                products: productCandidates,
+                customers: customerCandidates,
+                productLabels: productLabels,
+                referenceYear: voiceReferenceYear,
+                vocabulary: VoiceVocabulary.contextualStrings(productNames: products.map(\.name),
+                                                              customerNames: customers.map(\.displayName)),
+                canUndoLastApply: voiceUndo != nil,
+                onApply: { applyVoice($0) },
+                onUndoLastApply: { undoVoice() })
+            .presentationDetents([.medium, .large])
         }
         .task {
             loadIfNeeded()
@@ -161,6 +202,73 @@ struct CustomerOrderEditor: View {
             }
             .onDelete { lines.remove(atOffsets: $0) }
         }
+    }
+
+    // MARK: Voz
+
+    private var productCandidates: [VoiceCandidate] {
+        products.map { VoiceCandidate(id: $0.id, name: $0.name, code: $0.naturaSku) }
+    }
+
+    private var customerCandidates: [VoiceCandidate] {
+        customers.map { VoiceCandidate(id: $0.id, name: $0.displayName) }
+    }
+
+    private var productLabels: [String: String] {
+        Dictionary(products.map { ($0.id, "\($0.name) · \($0.naturaSku)") }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private var voiceReferenceYear: Int {
+        CycleCode.parse(cycleText).map { $0 / 100 } ?? Calendar.current.component(.year, from: .now)
+    }
+
+    private func applyVoice(_ items: [VoiceProposalItem]) {
+        let snapshot = VoiceUndoSnapshot(customerName: customerName, selectedCustomerId: selectedCustomerId,
+                                         cycleText: cycleText, note: note, lines: lines)
+        let state = VoiceOrderState(
+            customerId: selectedCustomerId, customerName: customerName, cycle: CycleCode.parse(cycleText), note: note,
+            lines: lines.map { VoiceOrderState.Line(productId: $0.sellerProductId, quantity: $0.quantity, finalPesos: $0.finalPesos) })
+        let result = VoiceOrderApplier.apply(items, to: state, customers: customerCandidates)
+        guard result.applied > 0 else {
+            voiceMessage = "No se aplicó nada del dictado."
+            return
+        }
+
+        let existing = Dictionary(lines.map { ($0.sellerProductId, $0) }, uniquingKeysWith: { first, _ in first })
+        let productsById = Dictionary(products.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let newLines: [CustomerOrderLineSnapshot] = result.state.lines.compactMap { line in
+            if var current = existing[line.productId] {
+                current.quantity = line.quantity
+                current.finalPesos = line.finalPesos
+                return current
+            }
+            guard let product = productsById[line.productId] else { return nil }
+            return CustomerOrderLineSnapshot(
+                sellerProductId: product.id, productName: product.name, naturaSku: product.naturaSku,
+                quantity: line.quantity, suggestedPesos: product.lastSuggestedSalePesos, finalPesos: line.finalPesos)
+        }
+
+        voiceUndo = snapshot
+        customerName = result.state.customerName
+        selectedCustomerId = result.state.customerId
+        if let cycle = result.state.cycle { cycleText = String(cycle) }
+        note = result.state.note
+        lines = newLines
+        voiceMessage = result.skipped > 0
+            ? "Dictado aplicado: \(result.applied) cambio(s); \(result.skipped) sin resolver se omitieron."
+            : "Dictado aplicado: \(result.applied) cambio(s)."
+        Haptics.success()
+    }
+
+    private func undoVoice() {
+        guard let snapshot = voiceUndo else { return }
+        customerName = snapshot.customerName
+        selectedCustomerId = snapshot.selectedCustomerId
+        cycleText = snapshot.cycleText
+        note = snapshot.note
+        lines = snapshot.lines
+        voiceUndo = nil
+        voiceMessage = "Dictado deshecho."
     }
 
     // MARK: Acciones
