@@ -63,6 +63,9 @@ public struct ProductsScreen: View {
             .syncStatusToolbar(sellerId: sellerId)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    ProductPhotoButton(sellerId: sellerId)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { creating = true } label: { Image(systemName: "plus") }
                         .accessibilityLabel("Producto nuevo")
                 }

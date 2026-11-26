@@ -80,6 +80,9 @@ public struct SellScreen: View {
                         .accessibilityLabel("Dictar venta")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    ProductPhotoButton(sellerId: sellerId)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     ScannerButton { showingScanner = true }
                 }
                 ToolbarItem(placement: .topBarTrailing) {

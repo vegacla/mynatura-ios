@@ -249,6 +249,14 @@ struct QuickProductSheet: View {
     @State private var errorMessage: String?
     @State private var lookingUp = false
 
+    /// `initialSku` / `initialName`: lo leído en una foto (docs/product-photo-proposal.md), editable.
+    init(sellerId: String, initialSku: String = "", initialName: String = "", onCreated: @escaping (String) -> Void) {
+        self.sellerId = sellerId
+        self.onCreated = onCreated
+        _sku = State(initialValue: initialSku)
+        _name = State(initialValue: initialName)
+    }
+
     var body: some View {
         NavigationStack {
             Form {

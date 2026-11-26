@@ -18,6 +18,8 @@ struct CustomerOrderEditor: View {
     let orderId: String?
     /// Abre el dictado al aparecer (Atajo "Nuevo pedido en MyNatura").
     var startDictating = false
+    /// Producto con el que empieza un pedido nuevo (desde la foto de un producto).
+    var initialProductId: String?
 
     @State private var loaded = false
     @State private var customerName = ""
@@ -43,10 +45,11 @@ struct CustomerOrderEditor: View {
         let lines: [CustomerOrderLineSnapshot]
     }
 
-    init(sellerId: String, orderId: String?, startDictating: Bool = false) {
+    init(sellerId: String, orderId: String?, startDictating: Bool = false, initialProductId: String? = nil) {
         self.sellerId = sellerId
         self.orderId = orderId
         self.startDictating = startDictating
+        self.initialProductId = initialProductId
         _customers = Query(filter: #Predicate<Customer> { $0.sellerId == sellerId }, sort: \.displayName)
         _products = Query(filter: #Predicate<CatalogProduct> { $0.sellerId == sellerId }, sort: \.name)
         let key = orderId ?? ""
@@ -291,6 +294,9 @@ struct CustomerOrderEditor: View {
             let lastCycle = (try? context.fetch(FetchDescriptor<CustomerOrder>(
                 predicate: #Predicate { $0.sellerId == sellerId }, sortBy: [SortDescriptor(\.orderedAt, order: .reverse)])))?.first?.cycle
             cycleText = lastCycle.map(String.init) ?? ""
+            if let initialProductId, let product = products.first(where: { $0.id == initialProductId }) {
+                addLine(product)
+            }
         }
     }
 
