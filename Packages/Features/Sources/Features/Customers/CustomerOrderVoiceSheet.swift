@@ -192,6 +192,8 @@ struct CustomerOrderVoiceSheet: View {
             return "Nota: \(text)"
         case .unrecognized(let text):
             return "“\(text)”"
+        case .receive, .count:
+            return "No aplica en un pedido de cliente"
         }
     }
 
