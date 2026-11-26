@@ -11,7 +11,7 @@
 La consultora tiene un producto en la mano y quiere hacer algo con él sin buscarlo en listas:
 
 1. **Toma una foto** (o apunta la cámara).
-2. La app **reconoce el producto**: por código de barras, por el código Natura impreso, por el nombre de la etiqueta o por cómo se ve.
+2. La app **reconoce el producto**: por código de barras, por el código Natura impreso o por el nombre de la etiqueta.
 3. Muestra una **ficha con botones de acción**: tomar inventario, asociar el código de barras, agregar a la venta, agregar a un pedido de cliente, recibir en un pedido Natura…
 4. Al tocar un botón se **ejecuta** con las mismas acciones de siempre (`SyncEngine`): funciona sin conexión y se sincroniza después.
 
@@ -30,28 +30,21 @@ Casos típicos:
 
 ## 2. Reconocimiento: señales y dónde se calculan
 
-Se combinan varias señales, de la más segura a la más difusa. Las tres primeras corren **en el iPhone, sin red**, con Vision, que funciona en el A15.
+Se combinan tres señales, de la más segura a la más difusa. Todas corren **en el iPhone, sin red**, con Vision, que funciona en el A15. La foto no se sube a ningún servidor.
 
 | # | Señal | Cómo | Confianza |
 |---|---|---|---|
 | 1 | **Código de barras** en la foto | `VNDetectBarcodesRequest` (EAN-13/8, UPC-E, Code128), mismo set que el escáner actual | Exacta, si el EAN está asociado |
 | 2 | **Código Natura** impreso ("Cód. 12345", "(12345)", 5–7 dígitos) | `VNRecognizeTextRequest` (OCR local en español) + reglas de `Core` | Muy alta, si existe en el catálogo o en la revista |
 | 3 | **Nombre en la etiqueta** ("KAIAK", "EKOS castaña") | El mismo OCR + `ProductMatcher` de la voz: fonético, alias, nombre corto | Media; ambiguo entre variantes |
-| 4 | **Aspecto visual** | `VNGenerateImageFeaturePrintRequest` (huella de imagen local) comparada con **fotos de referencia** guardadas por producto | Media; mejora con el uso |
-| 5 | **Servidor** (opcional, con conexión) | `POST /api/catalog/recognize` (multipart, como el OCR de boletas). El backend compara con las imágenes de la revista del ciclo y su API de productos (`natura-order-placement.md` §2.3), o usa OCR de mejor calidad | Respaldo cuando 1–4 no alcanzan |
 
-**Por qué local primero:**
-- funciona sin conexión;
-- es inmediato;
+**Ventajas de quedarse con estas tres:**
+- funcionan sin conexión y son inmediatas;
 - la foto no sale del iPhone;
-- cubre la mayoría de los casos, porque los envases Natura traen código de barras y nombre legibles.
+- no hace falta backend nuevo ni guardar fotos;
+- cubren la mayoría de los casos, porque los envases Natura traen código de barras y nombre legibles.
 
-La señal 5 es la que cumple el "subirla" del pedido original. Queda **opcional**: se usa si la persona la activa y hay red. Las fotos de producto no tienen datos personales, pero igual consumen datos y dependen del backend.
-
-**Fotos de referencia (señal 4):**
-- cada vez que la persona **confirma** qué producto era, se puede guardar la huella de esa foto (`ProductPhoto`, unos KB; la foto en sí es opcional);
-- con el tiempo, el reconocimiento por aspecto aprende **tus** productos, sin entrenar modelos;
-- cuando exista la revista del ciclo en la app, sus imágenes pueden sembrar estas referencias.
+**Descartado:** reconocimiento por aspecto visual (huellas de imagen) y subir la foto al servidor.
 
 ### 2.1 Combinación (`Core`, probada en Linux)
 
@@ -60,12 +53,11 @@ public enum PhotoSignal: Equatable, Sendable {
     case barcode(String)                      // EAN leído
     case naturaCode(String)                   // código Natura leído por OCR
     case labelText([String])                  // líneas de texto de la etiqueta
-    case visual(productId: String, distance: Double)
 }
 
 public enum ProductRecognizer {
-    /// Candidatos ordenados: EAN asociado (1.0) > código Natura en catálogo (0.97) > nombre (ProductMatcher)
-    /// > aspecto (según distancia). Varias señales que apuntan al mismo producto suman confianza.
+    /// Candidatos ordenados: EAN asociado (1.0) > código Natura en catálogo (0.97) > nombre (ProductMatcher).
+    /// Varias señales que apuntan al mismo producto suman confianza.
     public static func rank(_ signals: [PhotoSignal], catalog: [RecognizableProduct]) -> [RecognitionCandidate]
     public static func resolve(...) -> VoiceMatch   // .found / .ambiguous / .notFound (mismo tipo que la voz)
     /// Códigos Natura en el texto OCR: "(12345)", "Cód. 12345", "Código: 12345"; descarta EAN, precios y fechas.
@@ -74,7 +66,7 @@ public enum ProductRecognizer {
 ```
 
 - **Un candidato claro:** se muestra su ficha directamente.
-- **Ambiguo:** se muestran 2 a 5 candidatos con miniatura y stock, y la persona toca el correcto. Eso además **enseña** la foto de referencia.
+- **Ambiguo:** se muestran 2 a 5 candidatos con stock, y la persona toca el correcto.
 - **Ninguno:** se ofrece "Crear producto" con el código y el nombre leídos.
 
 ---
@@ -119,17 +111,14 @@ Features (SwiftUI)
   ProductCameraScreen · RecognitionSheet (ficha + candidatos + botones) · acciones (reusa SyncEngine)
         │
 Features/Shared/Photo (iOS)
-  PhotoAnalyzer      Vision: barcodes + OCR (es) + feature print, en un solo paso
-  PhotoReferenceStore  huellas por producto (SwiftData: ProductPhoto)
-  RecognitionUploader  (opcional) multipart → POST /api/catalog/recognize
+  PhotoAnalyzer      Vision: códigos de barras + OCR (es), en un solo paso
         │  señales
 Core (solo Foundation)
   ProductRecognizer  naturaCodes(in:) · rank · resolve (reusa ProductMatcher / VoiceMatch)
   ProductActions     available(product, stock, openOrders, cart, draft) → [ProductAction]
 ```
 
-- **Persistencia nueva:** `ProductPhoto { id, sellerId, productId, featurePrint: Data, createdAt, thumbnail?: Data }` (local, se puede borrar).
-- **Backend (opcional, etapa P5):** `POST /api/catalog/recognize` (multipart JPEG) devuelve `{ candidates: [{ sellerProductId?, naturaSku, name, score, source }] }`. Reusa sharp y Tesseract del OCR de boletas y el índice de la revista del ciclo.
+- **Sin persistencia nueva ni backend:** la foto se analiza en memoria y se descarta.
 - **Permisos:** la cámara ya está en `project.yml` (`NSCameraUsageDescription`, conviene ampliar el texto: "…y reconocer productos"). La fototeca también.
 
 ---
@@ -140,11 +129,9 @@ Core (solo Foundation)
 |---|---|---|
 | P1 | Núcleo | `ProductRecognizer` (`naturaCodes`, `rank`, `resolve`) y `ProductActions` en `Core`, con tests |
 | P2 | Foto → ficha → acciones | `PhotoAnalyzer` (código de barras + OCR), hoja con candidatos y botones: inventario, asociar EAN, venta, pedido de cliente, recibir, ficha |
-| P3 | Aspecto visual | Huellas `VNGenerateImageFeaturePrintRequest`, `ProductPhoto` y "aprender" al confirmar |
-| P4 | Ráfaga y voz | Inventario de repisa foto a foto; comandos de voz en la ficha; Atajo "Foto de producto" |
-| P5 | Servidor (opcional) | Endpoint de reconocimiento en el backend con la revista del ciclo; subir solo con conexión y permiso |
+| P3 | Ráfaga y voz | Inventario de repisa foto a foto; comandos de voz en la ficha; Atajo "Foto de producto" |
 
-P1–P4 funcionan sin conexión y sin backend nuevo.
+Todo funciona sin conexión y sin backend nuevo.
 
 ---
 
@@ -152,12 +139,11 @@ P1–P4 funcionan sin conexión y sin backend nuevo.
 
 | Riesgo | Mitigación |
 |---|---|
-| Variantes casi iguales (Humor masculino/femenino, tamaños) | Código de barras y código Natura primero; ambigüedad explícita con selector; aprender por foto confirmada |
+| Variantes casi iguales (Humor masculino/femenino, tamaños) | Código de barras y código Natura primero; ambigüedad explícita con selector |
 | OCR lee precios o fechas como códigos | Reglas en `naturaCodes` (paréntesis, "Cód.", largo 5–7, no EAN) y verificación contra catálogo y revista |
 | Fotos con poca luz o reflejos (envases brillantes) | Lectura en vivo antes de disparar, flash/linterna, elegir otra foto |
 | Pantalla chica | Ficha como hoja media, botones grandes en una columna, máx. 4 visibles y "Más…" |
 | Acciones por error | Paso de confirmación, nada destructivo sin diálogo, "Registrar venta" separado |
-| Espacio por fotos de referencia | Guardar solo la huella (KB); miniatura opcional y borrable |
 
 ---
 
@@ -165,5 +151,4 @@ P1–P4 funcionan sin conexión y sin backend nuevo.
 
 1. ¿Los envases Natura muestran el código Natura (5–7 dígitos) en forma legible, o solo el EAN? Define cuánto pesan las señales 2 y 3.
 2. ¿Cuántos productos del catálogo ya tienen EAN asociado? Si son la mayoría, P2 resuelve casi todo.
-3. ¿Se quiere la señal 5 (subir la foto) desde el inicio, o basta con lo local?
-4. Para "Agregar a pedido de cliente": ¿por defecto el último pedido en borrador o siempre elegir?
+3. Para "Agregar a pedido de cliente": ¿por defecto el último pedido en borrador o siempre elegir?
