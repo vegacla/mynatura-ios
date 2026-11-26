@@ -73,7 +73,8 @@ Lo que MyNatura puede aportar en cada paso:
 - **Ciclo vigente:** lo muestra el **home de minegocio** (`https://minegocio.natura.cl/`, con sesión) en una tarjeta: **"Ciclo Actual: 19 · 26/11 a 09/12"** (observado el 2026-11-26).
   - Trae número de ciclo y **fechas de inicio y fin**. El año no aparece; se deduce de las fechas (un ciclo que cruza de año toma el año de la fecha de inicio, a confirmar con el ciclo 01).
   - Ese ciclo coincide con la revista `{AAAA}/{CC}`: 19 → `2026/19`, ya publicada.
-  - **Fuente en el HTML** (captura del 2026-11-26): el home trae `var query_cycle = [202619]` (AAAACC). El backend puede leerlo con la sesión de minegocio que ya obtiene, sin GSP. Las fechas no están ahí: vienen de GSP (`unified-assistant-proposal.md` §6.3).
+  - **Fuente en el HTML** (captura del 2026-11-26): el home trae `var query_cycle = [202619]` (AAAACC). El backend puede leerlo con la sesión de minegocio que ya obtiene, sin GSP.
+  - **Con fechas, verificado:** GSP `consultantSection.actualCycle` → `{ number, label, startDate, endDate, year, status, remainingDays, orderDate }`, vía `natura-gsp-auth.ts` (`unified-assistant-proposal.md` §6.2).
   - La tarjeta tiene un ícono ⓘ con más información (¿hora de cierre?).
   - Falta saber si el dato viene en el **HTML** del home (se parsea como hoy `#order-items-list`) o en un **XHR** (JSON). Ver paso 0 de §4.2.
   - Uso: el backend lo lee en cada login (import o pedido) y lo guarda como `current_cycle` (`AAAACC`, inicio, fin, `fetched_at`) por consultora. La app lo muestra, elige sola la revista y el borrador del ciclo, y avisa cuando quedan pocos días para el fin.

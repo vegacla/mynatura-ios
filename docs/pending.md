@@ -63,7 +63,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 - **Captura de endpoints (la hace la consultora):** recorrido de §4.2 en minegocio con DevTools, guardando **Save all as HAR (sanitized)** fuera del repo, y **cancelar el pedido antes de cerrarlo**. De ahí salen rutas y DTOs para §5.2 (solo formas, sin valores). Incluye:
   - paso 0: de dónde sale "Ciclo Actual" en el home (HTML o XHR) y qué muestra el ⓘ;
   - pasos 17–19: ids del API de productos de la revista (`campaign_id`, `brochure_id`, `feed_id`), si trae puntos y ofertas, y el checkout por WhatsApp.
-- **Login de GSP sin navegador (spike en el backend):** capturado (`unified-assistant-proposal.md` §6.2). Probar signin → `recover-session` con el `authToken` y el client_id de GSP → GraphQL `authPersonData` / `profileOtherCycles` / `authCommercialInfo` (`xAppToken`) → `consultantSection` (ciclo con fechas). El backend hoy no sabe nada de GSP.
+- ~~Login de GSP sin navegador~~: **verificado** (`natura:probe-gsp-login`, 2026-11-26) con el `sso_token`; código en `natura-gsp-auth.ts` del backend. Siguiente: endpoints de ciclo actual (`consultantSection`), cuenta (`mis-cuentas` + crédito) y ofertas (`unified-assistant-proposal.md` §6.5, etapas U5–U6).
 - **Ciclo vigente sin GSP:** leer `var query_cycle = [AAAACC]` del HTML del home (ya disponible con la sesión del import).
 - **Ciclo vigente:** que el backend lea número y fechas del ciclo desde el home en cada login y los guarde por consultora. Lo usan la revista, el borrador y la respuesta de voz del ciclo.
 - **Etapas 1–6 de §9:**
