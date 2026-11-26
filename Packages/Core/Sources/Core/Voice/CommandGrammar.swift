@@ -32,7 +32,7 @@ public enum CommandGrammar {
     static let addVerbs: Set<String> = [
         "agrega", "agregar", "agregale", "agregame", "anade", "anadele", "anota", "pon", "ponle", "ponme", "suma", "sumale",
         "quiere", "quiero", "pide", "pidio", "lleva", "llevo", "va", "van", "mete", "metele", "echa", "echale", "dame",
-        "necesita", "necesito", "otro", "otra", "otros", "otras", "tambien",
+        "necesita", "necesito", "otro", "otra", "otros", "otras", "tambien", "vende", "vendele", "vender", "vendo",
     ]
     static let honorifics: Set<String> = [
         "el", "la", "mi", "don", "dona", "senor", "senora", "senorita", "sr", "sra", "srta",
@@ -62,7 +62,9 @@ public enum CommandGrammar {
             return reconciliationCommands(segment)
         case .global:
             return queryCommands(segment)
-        case .naturaDraft, .cart:
+        case .cart:
+            return cartCommands(segment)
+        case .naturaDraft:
             let text = VoiceText.joinRaw(segment)
             return text.isEmpty ? [] : [.unrecognized(text)]
         }
@@ -232,6 +234,24 @@ public enum CommandGrammar {
         let quantity = item.quantity ?? 1
         guard (1...maximumQuantity).contains(quantity) else { return .unrecognized(VoiceText.joinRaw(words)) }
         return .addLine(quantity: quantity, product: product, price: price)
+    }
+
+    // MARK: - Carro de venta
+
+    /// Pedir que se registre o cobre: la voz no registra ventas, solo termina el dictado.
+    static let registerWords: Set<String> = [
+        "registra", "registrar", "registrala", "registralo", "cobra", "cobrar", "cobrale", "finaliza", "finalizar",
+    ]
+
+    /// Como el pedido de cliente, sin ciclo: "dos Kaiak a nueve noventa", "para la señora Ana", "quita el Humor".
+    static func cartCommands(_ segment: [VoiceToken]) -> [VoiceCommand] {
+        if segment.contains(where: { registerWords.contains($0.text) }) {
+            return [.done]
+        }
+        return customerOrderCommands(segment).map { command in
+            if case .setCycle = command { return .unrecognized(VoiceText.joinRaw(segment)) }
+            return command
+        }
     }
 
     // MARK: - Recepción

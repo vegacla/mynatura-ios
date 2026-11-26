@@ -1,6 +1,6 @@
 # Propuesta — Interacción por voz en MyNatura iOS
 
-> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) V3 (recepción, conciliación y modo continuo) y V4 (consultas con respuesta hablada) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
+> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) V3 (recepción, conciliación y modo continuo), V4 (consultas con respuesta hablada) y V5 en su parte del carro implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
 
 ---
 
@@ -173,6 +173,20 @@ public enum ProductRef: Equatable, Sendable { case sku(String), text(String) }
   - `VoiceSpeaker` (`AVSpeechSynthesizer`, voz `es-CL` si existe) lee las respuestas; se apaga con "Leer respuestas en voz alta" (`voice.spokenAnswers`) y se calla al empezar a escuchar.
 - **Ciclo:** todavía no hay fecha de cierre local. La respuesta lo dice y da el último ciclo registrado, hasta que se lea "Ciclo Actual" desde el home de minegocio (ver `natura-order-placement.md` §2.3).
 
+## 5.9 Implementación V5 (carro)
+
+- **Core:**
+  - contexto `.cart`: la misma gramática del pedido de cliente sin ciclo ("dos Kaiak a nueve noventa", "para la señora Ana", "otro más", "quita el Humor", "nota: …"; también "vende un 12345");
+  - "registra la venta", "cóbrale" y similares solo terminan el dictado (`.done`). La voz **nunca** registra ventas.
+  - `VoiceOrderApplier.apply` suma `limits` (stock por producto: sin stock se omite, más que el stock se ajusta; cuenta `capped` y `outOfStock`) y `allowsNewCustomer` (el carro solo usa clientes existentes).
+- **Features:** `CartVoiceSheet`, que se abre con el micrófono de Vender o con **Dictar** en el carro:
+  - chips con stock disponible al elegir entre parecidos;
+  - avisos de "sin stock", "se agregan N" y "bajo el sugerido: elige el motivo en el carro";
+  - modo continuo y "listo".
+  - **Aplicar** carga `CartDraft` / `CartDraftLine` (cantidades, precio final dicho o el sugerido, cliente y nota) y abre el carro. El motivo de un precio bajo el sugerido y **Registrar venta** quedan en el carro, como siempre.
+- **Sin "Deshacer dictado"** en el carro: lo aplicado se corrige editando el carro. "Deshacer" dicho quita el último chip del dictado en curso.
+- **Pendiente de V5:** el contexto `.naturaDraft`, que espera al borrador del pedido Natura (`pending.md`).
+
 ## 6. Permisos y configuración
 
 En `project.yml` (`info.properties`):
@@ -217,7 +231,7 @@ NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar 
 | V2 | Pedido de cliente por voz | `SpeechCaptureService` (local preferido), overlay con chips, botón en el editor, permisos | ✅ 2026-11-26 (sin probar en iPhone) |
 | V3 | Recepción y conciliación | Contextos `.receiving` y `.reconciliation`, modo continuo | ✅ 2026-11-26 (sin probar en iPhone) |
 | V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | ✅ 2026-11-26 (sin probar en iPhone) |
-| V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | — |
+| V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | 🟡 carro ✅ 2026-11-26 (sin probar en iPhone); borrador Natura pendiente |
 | V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo | — |
 | V7 | Opcionales | App Intents / Atajos; respaldo con `FoundationModels` en equipos compatibles | — |
 

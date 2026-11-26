@@ -15,6 +15,7 @@ public struct SellScreen: View {
     @State private var searchText = ""
     @State private var showingCart = false
     @State private var showingScanner = false
+    @State private var dictating = false
     @State private var message: (text: String, isError: Bool)?
     private let sellerId: String
 
@@ -58,11 +59,26 @@ public struct SellScreen: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Nombre, SKU o EAN")
+            .sheet(isPresented: $dictating) {
+                CartVoiceSheet(sellerId: sellerId) { summary in
+                    message = (summary, false)
+                    // Esperar a que se cierre la hoja de dictado antes de abrir el carro.
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        showingCart = true
+                    }
+                }
+                .presentationDetents([.medium, .large])
+            }
             .onSubmit(of: .search) { addExactMatch(searchText) }
             .refreshable { await sync.syncNow(sellerId: sellerId) }
             .navigationTitle("Vender")
             .syncStatusToolbar(sellerId: sellerId)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dictating = true } label: { Image(systemName: "mic.fill") }
+                        .accessibilityLabel("Dictar venta")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     ScannerButton { showingScanner = true }
                 }

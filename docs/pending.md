@@ -8,14 +8,10 @@
 
 ## 1. Voz (`voice-interaction-proposal.md`)
 
-Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada.
+Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada · V5 carro de venta.
 
-### V5 — Carro y borrador Natura
-- **Carro de venta (se puede hacer ya):**
-  - contexto `.cart` en `CommandGrammar`: "dos Kaiak a nueve noventa", "para la señora Ana", "quita el Humor";
-  - hoja de dictado en Vender con chips, como en el pedido de cliente;
-  - si el precio queda bajo el sugerido, el **motivo se elige en pantalla** (regla de precios de §5.3 del diseño iOS), nunca por voz;
-  - **Registrar venta** sigue siendo un toque: la voz no registra ventas.
+### V5 — Borrador Natura
+- El carro de venta ya está hecho (§5.9 del documento de voz).
 - **Borrador del pedido Natura (bloqueado):** depende de que exista el borrador de `natura-order-placement.md`, cuyas etapas 1–2 requieren primero la captura de endpoints (§2 de este archivo).
   - Cuando exista: contexto `.naturaDraft` con "agrega cinco del 87654", "sube a tres el Ekos" y "¿cuántos puntos llevo?" contra el tope del nivel.
 
@@ -56,6 +52,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
   - que la voz en español suene bien;
   - que la música vuelva a su volumen;
   - que el micrófono funcione otra vez después de una respuesta leída.
+- Carro por voz: que al aplicar se abra el carro (tras cerrarse la hoja) y que el motivo aparezca cuando el precio dictado queda bajo el sugerido.
 - Precisión con nombres reales de clientes y productos, y con ruido de fondo.
 
 ---

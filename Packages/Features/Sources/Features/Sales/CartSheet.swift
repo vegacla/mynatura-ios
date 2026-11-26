@@ -17,6 +17,8 @@ struct CartSheet: View {
     @Query private var drafts: [CartDraft]
     @State private var errorMessage: String?
     @State private var choosingCustomer = false
+    @State private var dictating = false
+    @State private var voiceMessage: String?
     let sellerId: String
 
     init(sellerId: String) {
@@ -75,6 +77,9 @@ struct CartSheet: View {
                     }
                 }
 
+                if let voiceMessage {
+                    Section { AlertBanner(voiceMessage, tone: .info, systemImage: "mic.fill") }
+                }
                 if let errorMessage {
                     Section { AlertBanner(errorMessage, tone: .danger) }
                 }
@@ -96,12 +101,19 @@ struct CartSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { dismiss() } }
+                ToolbarItem(placement: .bottomBar) {
+                    Button { dictating = true } label: { Label("Dictar", systemImage: "mic.fill").labelStyle(.titleAndIcon) }
+                }
                 ToolbarItem(placement: .destructiveAction) {
                     Button("Vaciar", role: .destructive) { Cart.clear(sellerId: sellerId, context: context) }
                         .disabled(lines.isEmpty)
                 }
             }
             .onAppear { _ = Cart.draft(sellerId: sellerId, context: context) }
+            .sheet(isPresented: $dictating) {
+                CartVoiceSheet(sellerId: sellerId) { summary in voiceMessage = summary }
+                    .presentationDetents([.medium, .large])
+            }
             .sheet(isPresented: $choosingCustomer) {
                 CustomerPickerSheet(sellerId: sellerId) { customer in
                     let draft = Cart.draft(sellerId: sellerId, context: context)

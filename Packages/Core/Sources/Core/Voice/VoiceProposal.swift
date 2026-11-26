@@ -207,18 +207,54 @@ public struct VoiceApplyResult: Equatable, Sendable {
     public var state: VoiceOrderState
     public var applied: Int
     public var skipped: Int
+    /// Cantidades ajustadas al stock disponible (solo con `limits`).
+    public var capped: Int = 0
+    /// Productos sin stock que se omitieron (solo con `limits`).
+    public var outOfStock: Int = 0
 }
 
 public enum VoiceOrderApplier {
     /// Mismo tope que el stepper del editor.
     public static let maximumQuantity = 999
 
-    public static func apply(_ items: [VoiceProposalItem], to initial: VoiceOrderState,
-                             customers: [VoiceCandidate]) -> VoiceApplyResult {
+    /// - Parameters:
+    ///   - limits: stock disponible por producto (carro de venta). Sin stock ⇒ se omite; más que el stock ⇒ se ajusta.
+    ///   - allowsNewCustomer: el pedido de cliente crea clientes nuevos; el carro solo usa clientes existentes.
+    public static func apply(_ items: [VoiceProposalItem], to initial: VoiceOrderState, customers: [VoiceCandidate],
+                             limits: [String: Int]? = nil, allowsNewCustomer: Bool = true) -> VoiceApplyResult {
         var state = initial
         var applied = 0
         var skipped = 0
+        var capped = 0
+        var outOfStock = 0
         var lastProductId = initial.lines.last?.productId
+
+        func limit(_ productId: String) -> Int {
+            guard let limits else { return maximumQuantity }
+            return min(limits[productId] ?? 0, maximumQuantity)
+        }
+
+        /// Deja la línea en `quantity` respetando el límite; false si el producto no tiene stock.
+        func setLine(_ productId: String, quantity: Int, finalPesos: Int?) -> Bool {
+            let maximum = limit(productId)
+            guard maximum > 0 else {
+                outOfStock += 1
+                return false
+            }
+            if quantity > maximum { capped += 1 }
+            let value = min(quantity, maximum)
+            if let index = state.lines.firstIndex(where: { $0.productId == productId }) {
+                state.lines[index].quantity = value
+                if let finalPesos { state.lines[index].finalPesos = finalPesos }
+            } else {
+                state.lines.append(VoiceOrderState.Line(productId: productId, quantity: value, finalPesos: finalPesos))
+            }
+            return true
+        }
+
+        func currentQuantity(_ productId: String) -> Int {
+            state.lines.first { $0.productId == productId }?.quantity ?? 0
+        }
 
         for item in items {
             guard item.action.isApplicable else {
@@ -227,6 +263,10 @@ public enum VoiceOrderApplier {
             }
             switch item.action {
             case .customer(let spoken, let match):
+                if case .notFound = match, !allowsNewCustomer {
+                    skipped += 1
+                    continue
+                }
                 if case .found(let id) = match {
                     state.customerId = id
                     state.customerName = customers.first { $0.id == id }?.name ?? spoken
@@ -239,23 +279,25 @@ public enum VoiceOrderApplier {
             case .keepCycle:
                 break
             case .addLine(let quantity, _, let price, .found(let id)):
-                add(quantity, of: id, finalPesos: price?.amount.pesos, to: &state)
                 lastProductId = id
-            case .repeatLast(let quantity):
-                guard let id = lastProductId, state.lines.contains(where: { $0.productId == id }) else {
+                guard setLine(id, quantity: currentQuantity(id) + quantity, finalPesos: price?.amount.pesos) else {
                     skipped += 1
                     continue
                 }
-                add(quantity, of: id, finalPesos: nil, to: &state)
+            case .repeatLast(let quantity):
+                guard let id = lastProductId, state.lines.contains(where: { $0.productId == id }),
+                      setLine(id, quantity: currentQuantity(id) + quantity, finalPesos: nil) else {
+                    skipped += 1
+                    continue
+                }
             case .setQuantity(_, let quantity, .found(let id)):
+                lastProductId = id
                 if quantity == 0 {
                     state.lines.removeAll { $0.productId == id }
-                } else if let index = state.lines.firstIndex(where: { $0.productId == id }) {
-                    state.lines[index].quantity = min(quantity, maximumQuantity)
-                } else {
-                    state.lines.append(VoiceOrderState.Line(productId: id, quantity: min(quantity, maximumQuantity)))
+                } else if !setLine(id, quantity: quantity, finalPesos: nil) {
+                    skipped += 1
+                    continue
                 }
-                lastProductId = id
             case .removeLine(_, .found(let id)):
                 guard state.lines.contains(where: { $0.productId == id }) else {
                     skipped += 1
@@ -270,17 +312,7 @@ public enum VoiceOrderApplier {
             }
             applied += 1
         }
-        return VoiceApplyResult(state: state, applied: applied, skipped: skipped)
-    }
-
-    static func add(_ quantity: Int, of productId: String, finalPesos: Int?, to state: inout VoiceOrderState) {
-        if let index = state.lines.firstIndex(where: { $0.productId == productId }) {
-            state.lines[index].quantity = min(state.lines[index].quantity + quantity, maximumQuantity)
-            if let finalPesos { state.lines[index].finalPesos = finalPesos }
-        } else {
-            state.lines.append(VoiceOrderState.Line(productId: productId, quantity: min(quantity, maximumQuantity),
-                                                    finalPesos: finalPesos))
-        }
+        return VoiceApplyResult(state: state, applied: applied, skipped: skipped, capped: capped, outOfStock: outOfStock)
     }
 }
 
