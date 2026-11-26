@@ -16,6 +16,8 @@ struct CustomerOrderEditor: View {
     @Query private var orders: [CustomerOrder]
     let sellerId: String
     let orderId: String?
+    /// Abre el dictado al aparecer (Atajo "Nuevo pedido en MyNatura").
+    var startDictating = false
 
     @State private var loaded = false
     @State private var customerName = ""
@@ -41,9 +43,10 @@ struct CustomerOrderEditor: View {
         let lines: [CustomerOrderLineSnapshot]
     }
 
-    init(sellerId: String, orderId: String?) {
+    init(sellerId: String, orderId: String?, startDictating: Bool = false) {
         self.sellerId = sellerId
         self.orderId = orderId
+        self.startDictating = startDictating
         _customers = Query(filter: #Predicate<Customer> { $0.sellerId == sellerId }, sort: \.displayName)
         _products = Query(filter: #Predicate<CatalogProduct> { $0.sellerId == sellerId }, sort: \.name)
         let key = orderId ?? ""
@@ -114,6 +117,7 @@ struct CustomerOrderEditor: View {
         }
         .task {
             loadIfNeeded()
+            if startDictating, !showVoice, voiceUndo == nil, lines.isEmpty { showVoice = true }
             if let orderId {
                 await sync.refreshCustomerOrder(sellerId: sellerId, orderId: orderId)
                 if lines.isEmpty, let fresh = orders.first?.lines { lines = fresh }

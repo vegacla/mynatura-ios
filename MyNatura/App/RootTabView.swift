@@ -7,6 +7,7 @@ import SwiftUI
 struct RootTabView: View {
     @Environment(AppRouter.self) private var router
     @Query private var mutations: [PendingMutation]
+    @State private var voiceLaunch: VoiceLaunch?
     let sellerId: String
 
     init(sellerId: String) {
@@ -39,5 +40,18 @@ struct RootTabView: View {
                 .badge(failed)
                 .tag(AppTab.settings)
         }
+        // Atajos de Siri (V7): abren la acción de voz pedida, ya con sesión iniciada.
+        .onAppear { consumePendingVoice() }
+        .onChange(of: router.pendingVoice) { _, _ in consumePendingVoice() }
+        .sheet(item: $voiceLaunch) { launch in
+            VoiceLaunchSheet(launch: launch, sellerId: sellerId)
+                .presentationDetents(launch == .newCustomerOrder ? [.large] : [.medium, .large])
+        }
+    }
+
+    private func consumePendingVoice() {
+        guard let pending = router.pendingVoice else { return }
+        router.pendingVoice = nil
+        voiceLaunch = pending
     }
 }

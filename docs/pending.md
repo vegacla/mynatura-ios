@@ -8,7 +8,7 @@
 
 ## 1. Voz (`voice-interaction-proposal.md`)
 
-Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada · V5 carro de venta · V6 vocabulario propio.
+Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada · V5 carro de venta · V6 vocabulario propio · V7 Atajos de Siri.
 
 ### V5 — Borrador Natura
 - El carro de venta ya está hecho (§5.9 del documento de voz).
@@ -19,8 +19,8 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 - Pendiente: sumar los productos de la **revista del ciclo** cuando la app la tenga (etapa 1 del pedido Natura).
 - Pendiente: pronunciaciones propias (`insert(term:)`, X-SAMPA), solo si las pruebas muestran marcas mal reconocidas.
 
-### V7 — Opcionales
-- App Intents / Atajos ("Nuevo pedido en MyNatura", "Stock de Kaiak en MyNatura"). Antes de prometerlo, **verificar que funcionan con la firma de Apple ID gratis** (Sideloadly).
+### V7 — Atajos (hecho, §5.11 del documento de voz)
+- Verificar en el iPhone que los Atajos funcionan con la firma de Apple ID gratis (Sideloadly).
 - ~~Respaldo con `FoundationModels`~~: **descartado por ahora**. El iPhone de uso es un **SE 3.ª generación** (A15, sin Apple Intelligence), así que el modelo local de Apple no está disponible. Si se quiere interpretación libre, la única vía es un modelo en la nube vía backend: opcional, solo con conexión y enviando el texto dictado (decisión pendiente).
 
 ### Sin etapa asignada

@@ -1,6 +1,6 @@
 # Propuesta — Interacción por voz en MyNatura iOS
 
-> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) V3 (recepción, conciliación y modo continuo), V4 (consultas con respuesta hablada), V5 en su parte del carro y V6 (vocabulario propio) implementadas; el resto es propuesta. Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
+> **Estado:** V1 (núcleo, `Packages/Core/Sources/Core/Voice/`), V2 (dictado en el editor de pedido de cliente) V3 (recepción, conciliación y modo continuo), V4 (consultas con respuesta hablada), V5 en su parte del carro, V6 (vocabulario propio) y V7 (Atajos de Siri) implementadas; queda pendiente el contexto del borrador Natura (V5). Complementa `ios-app-design.md`; respeta sus principios: offline primero, `Core` solo Foundation y Apple ID gratis (sin extensiones).
 
 ---
 
@@ -207,6 +207,22 @@ public enum ProductRef: Equatable, Sendable { case sku(String), text(String) }
   - Ícono `text.book.closed` en "Lo que escuché" cuando está activo.
 - **No incluido:** pronunciaciones propias (`insert(term:)` con fonemas X-SAMPA). Se suman si las pruebas muestran que alguna marca se sigue reconociendo mal.
 
+## 5.11 Implementación V7 (Atajos de Siri)
+
+- **App Intents en el target de la app** (`MyNatura/App/VoiceShortcuts.swift`, sin extensión):
+  - `AskMyNaturaIntent`: "Preguntar a MyNatura", "Consultar en MyNatura";
+  - `DictateSaleIntent`: "Dictar venta en MyNatura", "Nueva venta en MyNatura";
+  - `NewCustomerOrderIntent`: "Nuevo pedido en MyNatura", "Anotar pedido en MyNatura".
+  - `MyNaturaShortcuts` (`AppShortcutsProvider`) los publica en Siri y en la app Atajos, sin configuración.
+- **Todos abren la app** (`openAppWhenRun`) y dejan un `AppRouter.shared.pendingVoice`. `RootTabView` lo consume cuando hay sesión y abre `VoiceLaunchSheet`:
+  - consultas;
+  - dictado del carro, en la pestaña Vender;
+  - pedido de cliente nuevo con el dictado abierto, en la pestaña Clientes.
+  
+  Nada se ejecuta en segundo plano: la voz sigue proponiendo y la pantalla confirmando.
+- **Descartado:** respaldo con `FoundationModels`, porque el iPhone de uso (SE 3.ª gen.) no tiene Apple Intelligence.
+- **Por verificar en el iPhone:** que los Atajos aparezcan con la firma de Apple ID gratis (Sideloadly) y que Siri reconozca las frases en español.
+
 ## 6. Permisos y configuración
 
 En `project.yml` (`info.properties`):
@@ -253,7 +269,7 @@ NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar 
 | V4 | Consultas + respuestas habladas | `VoiceQuery` (stock, encargos, ventas, ciclo); `AVSpeechSynthesizer` | ✅ 2026-11-26 (sin probar en iPhone) |
 | V5 | Borrador Natura y carro | Contextos `.naturaDraft` (con puntos) y `.cart` (precio y motivo en pantalla) | 🟡 carro ✅ 2026-11-26 (sin probar en iPhone); borrador Natura pendiente |
 | V6 | Vocabulario | Modelo de lenguaje personalizado generado del catálogo y la revista del ciclo | ✅ 2026-11-26 (sin probar en iPhone) |
-| V7 | Opcionales | App Intents / Atajos; respaldo con `FoundationModels` en equipos compatibles | — |
+| V7 | Opcionales | App Intents / Atajos; respaldo con `FoundationModels` en equipos compatibles | ✅ 2026-11-26 Atajos (sin probar en iPhone); `FoundationModels` descartado (iPhone SE 3 sin Apple Intelligence) |
 
 ---
 

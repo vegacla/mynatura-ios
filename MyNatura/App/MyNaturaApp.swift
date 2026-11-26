@@ -11,7 +11,7 @@ struct MyNaturaApp: App {
     private let container: ModelContainer
     @State private var session: SessionStore
     @State private var sync: SyncEngine
-    @State private var router = AppRouter()
+    @State private var router = AppRouter.shared
 
     init() {
         let container: ModelContainer
