@@ -117,6 +117,6 @@ struct VoiceGrammarTests {
     }
 
     @Test func otherContextsAreNotInterpretedYet() {
-        #expect(CommandGrammar.interpret("dos Kaiak", context: .cart) == [.unrecognized("dos Kaiak")])
+        #expect(CommandGrammar.interpret("dos Kaiak", context: .naturaDraft) == [.unrecognized("dos Kaiak")])
     }
 }
