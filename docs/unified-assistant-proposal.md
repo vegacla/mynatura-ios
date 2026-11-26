@@ -210,7 +210,15 @@ Solo formas; sin valores. Todo se consume **vía backend**: la app nunca habla c
 ### 6.2 Login
 - `POST authenticator-cognito-apigw…/authentication-api/signin` → `{ sso_token, challengeRequired, daysExpirePassword, authToken }`. Ya implementado en el backend (`natura-http-auth.ts`): usa **solo `sso_token`** → `natura-callback` → cookie `wcmn_session` (minegocio). El `authToken` (36 caracteres, opaco) **no se usa** en ninguna parte del backend.
 - **GSP usa otra credencial:** encabezados `x-app-token` / `xapptoken` (JWT HS256 de unos 3400 caracteres, vigencia de 24 h, claims `compressed`, `filePath`, `iat`, `exp`), `sessionidentifier`, `http_username`, `application` y `country`. No usa `Authorization` ni cookies. Se renueva con `profileGetRefreshToken`, que devuelve `xAppToken`.
-- **Cómo se obtiene el primer `xAppToken`: no capturado.** "Nuevo Pedido" es un enlace simple `<a href="https://gsp.natura.com/login?country=CL" target="_blank">`: **no lleva token** y abre una pestaña nueva, que DevTools no graba desde la pestaña original. GSP tiene su propio paso de login, quizás reutilizando la sesión de `natura-auth`. El backend no tiene ningún conocimiento de GSP: ni el login por HTTP ni el respaldo con Playwright pasan por ahí.
+- **Cómo entra GSP** (captura `popup-gsp`, 2026-11-26). "Nuevo Pedido" abre `gsp.natura.com/login?country=CL` en otra pestaña, sin token, y sigue esta cadena:
+  1. `natura-auth.prd.naturacloud.com/?company&client_id&redirect_uri&country&language`, con el **client_id de GSP** (público, en la URL, distinto al de minegocio) y `redirect_uri=https://gsp.natura.com/`. No usa cookies de sesión (solo Akamai/GA): la página reutiliza un **token de 36 caracteres guardado en el navegador** del login anterior.
+  2. `POST authenticator-cognito-apigw…/authentication-api/recover-session` (encabezado `x-api-key`, la misma del signin) con `{ token, redirectUrl, clientId }` → `{ accessToken, idToken, expiresIn }`. Son JWT de **Cognito**, de 6 h. El `idToken` trae, entre otros, `natura_code`, `personId`, `gsp_profiles` y `country`.
+  3. Redirige a `gsp.natura.com/?sso_token=<ese mismo token>`, y GSP repite `recover-session` con `{ token }`.
+  4. GraphQL con `Authorization: Bearer <accessToken>` y `x-app-token` **vacío**: `authPersonData` → `profileOtherCycles` → `authCommercialInfo`. Cada respuesta trae un `xAppToken` (crece de ~200 a ~3400 caracteres), que se reenvía en la siguiente. Después ya funcionan `consultantSection`, `syncBasket`, `cardSection`, `getCart`, etc. (con `http_username` y `application`).
+- **Hipótesis a confirmar:** el token de 36 caracteres que reutiliza `natura-auth` es el **`authToken`** del signin. El `sso_token` del signin va a `natura-callback` de minegocio, es distinto del `authToken`, y el backend lo usa hoy.
+  Si se confirma, el backend puede entrar a GSP **sin navegador** con la misma contraseña en memoria: signin → `recover-session(authToken, clientId GSP)` → GraphQL `authPersonData` / `profileOtherCycles` / `authCommercialInfo` → `xAppToken`.
+  Así **Playwright no hace falta para GSP**, igual que ya no hace falta para minegocio.
+- **`consultantSection.actualCycle`** trae `{ number, label, startDate, endDate, year, status, remainingDays, orderDate }`: el **ciclo actual con fechas y días restantes** sin abrir el carro. `authCommercialInfo` trae `credit` e `isBlocked`. El backend no tiene ningún conocimiento de GSP: ni el login por HTTP ni el respaldo con Playwright pasan por ahí.
 
 ### 6.3 GSP — pedido nuevo (`gsp-apigw-mfe.prd.naturacloud.com/graphql/frontend/graphql`)
 El pedido **no se arma en minegocio**: se arma en la app GSP, sobre GraphQL. Operaciones observadas:
@@ -301,7 +309,7 @@ Core (solo Foundation, tests en Linux)
 
 ## 10. Preguntas abiertas
 
-1. **Cómo GSP emite el primer `xAppToken`:** capturar desde una sesión limpia (ventana privada, Preserve log desde antes del login) el paso minegocio → "Nuevo Pedido" → `gsp.natura.com/login`. ¿Usa el `authToken` o el `sso_token` del signin, o un login propio? Define si el backend puede leer crédito, ciclo, ofertas y carro con la misma contraseña en memoria. Los vencimientos (`mis-cuentas`) **no** dependen de esto: van con la cookie de minegocio que el backend ya obtiene.
+1. **¿`recover-session` acepta el `authToken` del signin con el client_id de GSP?** Capturado el flujo (§6.2). Falta un spike en el backend (como `natura:probe-http-login`): signin → `recover-session` → `authPersonData` → `consultantSection`. Si responde, crédito, ciclo con fechas, ofertas y carro quedan al alcance sin navegador. Los vencimientos (`mis-cuentas`) no dependen de esto.
 2. ¿`mis-cuentas` con qué `state` muestra solo lo pendiente? (Se vio el parámetro, no sus valores posibles.)
 3. ¿Se quiere registrar **deudas de clientes** (fiado) en la app? Habilita "recordatorio de cobro" (§4.2).
 4. ¿El Asistente reemplaza a las hojas actuales, o conviven como atajos dentro de cada pantalla?
