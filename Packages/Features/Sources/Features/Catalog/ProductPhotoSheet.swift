@@ -19,6 +19,9 @@ struct ProductPhotoSheet: View {
     let sellerId: String
 
     @State private var showingCamera = false
+    @State private var scanning = false
+    /// EAN leídos con el escáner que aún no se reconocen: se suman a la foto de la etiqueta para poder asociarlos.
+    @State private var scannedBarcodes: [String] = []
     @State private var photoItem: PhotosPickerItem?
     @State private var image: UIImage?
     @State private var analyzing = false
@@ -106,6 +109,11 @@ struct ProductPhotoSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { dismiss() } }
             }
+            .sheet(isPresented: $scanning) {
+                ScannerSheet(title: shelfMode ? "Escanear repisa" : "Escanear código", continuous: shelfMode) { code in
+                    handleScan(code)
+                }
+            }
             .fullScreenCover(isPresented: $showingCamera) {
                 CameraPicker(onImage: { picked in
                     showingCamera = false
@@ -142,6 +150,12 @@ struct ProductPhotoSheet: View {
             .onChange(of: productId) { _, id in
                 if shelfMode, let id { addShelfRow(id) }
             }
+            .onChange(of: shelfMode) { _, _ in
+                productId = nil
+                result = nil
+                reading = nil
+                scannedBarcodes = []
+            }
             .onChange(of: speech.lastUtterance) { _, utterance in
                 if let utterance { handleVoice(utterance.text) }
             }
@@ -169,12 +183,20 @@ struct ProductPhotoSheet: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityHidden(true)
             }
+            if BarcodeScannerView.isAvailable {
+                Button { scanning = true } label: {
+                    Label(shelfMode ? "Escanear repisa" : "Escanear código de barras", systemImage: "barcode.viewfinder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(analyzing)
+            }
             HStack {
                 if CameraPicker.isAvailable {
                     Button { showingCamera = true } label: {
-                        Label(image == nil ? "Tomar foto" : "Otra foto", systemImage: "camera")
+                        Label("Foto de la etiqueta", systemImage: "camera")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                 }
                 PhotosPicker(selection: $photoItem, matching: .images) {
                     Label("Elegir foto", systemImage: "photo")
@@ -184,8 +206,8 @@ struct ProductPhotoSheet: View {
             .disabled(analyzing)
         } footer: {
             Text(shelfMode
-                 ? "Cada producto reconocido se suma al conteo. Ajusta con los botones o di “conté siete”, y guarda todo al final."
-                 : "Apunta al código de barras o a la etiqueta. La foto se lee en el iPhone y no se guarda.")
+                 ? "Escanea cada unidad: cada lectura suma 1 al conteo de su producto. Ajusta con los botones o di “conté siete”, y guarda todo al final."
+                 : "El código de barras se lee en vivo, sin foto. Si no tiene código o no lo conozco, toma una foto de la etiqueta. Todo se lee en el iPhone y no se guarda.")
         }
     }
 
@@ -367,7 +389,9 @@ struct ProductPhotoSheet: View {
             }
         case .notFound:
             Section {
-                Text("No encontré este producto en tu catálogo.")
+                Text(result.labelName == nil && result.readCodes.isEmpty && !result.unknownBarcodes.isEmpty
+                     ? "No conozco este código. Toma una foto de la etiqueta para identificarlo, o créalo."
+                     : "No encontré este producto en tu catálogo.")
                 Button {
                     creating = CreateRequest(sku: result.readCodes.first ?? "", name: result.labelName ?? "")
                 } label: {
@@ -399,13 +423,17 @@ struct ProductPhotoSheet: View {
         addedToSale = false
         showingInventory = false
         highlighted = nil
+        let pendingBarcodes = scannedBarcodes
+        scannedBarcodes = []
         Task {
             do {
-                let read = try await PhotoAnalyzer.analyze(picked)
-                let catalog = products.map {
-                    RecognizableProduct(id: $0.id, name: $0.name, sku: $0.naturaSku, barcodes: $0.barcodes)
-                }
-                let recognized = ProductRecognizer.recognize(barcodes: read.barcodes, textLines: read.textLines, catalog: catalog)
+                let photo = try await PhotoAnalyzer.analyze(picked)
+                // Un EAN escaneado antes (y no reconocido) se suma para poder asociarlo al producto de la etiqueta.
+                var barcodes = photo.barcodes
+                for code in pendingBarcodes where !barcodes.contains(code) { barcodes.append(code) }
+                let read = PhotoReading(barcodes: barcodes, textLines: photo.textLines)
+                let recognized = ProductRecognizer.recognize(barcodes: read.barcodes, textLines: read.textLines,
+                                                             catalog: recognizableCatalog)
                 reading = read
                 result = recognized
                 if case .found(let id) = recognized.match {
@@ -439,16 +467,59 @@ struct ProductPhotoSheet: View {
         }
     }
 
-    // MARK: Inventario de repisa y voz (P3)
+    private var recognizableCatalog: [RecognizableProduct] {
+        products.map { RecognizableProduct(id: $0.id, name: $0.name, sku: $0.naturaSku, barcodes: $0.barcodes) }
+    }
 
-    private func addShelfRow(_ id: String) {
-        let name = products.first { $0.id == id }?.name ?? id
-        if shelfRows.contains(where: { $0.productId == id }) {
-            message = ("\(name) ya está en el conteo.", false)
+    /// Lectura en vivo del escáner: sin foto. Un código de 5–7 dígitos también se prueba como código Natura.
+    private func handleScan(_ code: String) {
+        let recognized = ProductRecognizer.recognize(barcodes: [code], textLines: [code], catalog: recognizableCatalog)
+        if shelfMode {
+            if case .found(let id) = recognized.match {
+                addShelfRow(id)
+                Haptics.success()
+            } else {
+                message = ("No conozco el código \(code). Sal del modo repisa para identificarlo con una foto.", true)
+                Haptics.error()
+            }
             return
         }
-        shelfRows.append(ShelfRow(productId: id, counted: available(id)))
-        message = ("Agregado al conteo: \(name). Ajusta o toma la siguiente foto.", false)
+        image = nil
+        highlighted = nil
+        showingInventory = false
+        addedToSale = false
+        reading = PhotoReading(barcodes: [code], textLines: [])
+        result = recognized
+        switch recognized.match {
+        case .found(let id):
+            productId = id
+            message = nil
+            scannedBarcodes = []
+            Haptics.success()
+        case .ambiguous:
+            productId = nil
+            message = nil
+            Haptics.tap()
+        case .notFound:
+            productId = nil
+            scannedBarcodes = [code]
+            message = ("No conozco el código \(code). Toma una foto de la etiqueta para identificar el producto y asociarlo.", true)
+            Haptics.error()
+        }
+    }
+
+    // MARK: Inventario de repisa y voz (P3)
+
+    /// Cada lectura del producto suma 1 a su conteo (la primera crea la fila).
+    private func addShelfRow(_ id: String) {
+        let name = products.first { $0.id == id }?.name ?? id
+        if let index = shelfRows.firstIndex(where: { $0.productId == id }) {
+            shelfRows[index].counted = min(shelfRows[index].counted + 1, 9999)
+            message = ("\(name): \(shelfRows[index].counted).", false)
+            return
+        }
+        shelfRows.append(ShelfRow(productId: id, counted: 1))
+        message = ("Agregado al conteo: \(name) = 1. Sigue escaneando o ajusta.", false)
     }
 
     private func saveShelf() {

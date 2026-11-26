@@ -87,14 +87,18 @@ Después del reconocimiento, una ficha con nombre, SKU, stock operativo, precio 
 | **Agregar al borrador Natura** | cuando exista el borrador (`natura-order-placement.md`) | Línea del borrador, con sus puntos |
 
 - **Confirmación:** las acciones que cambian datos llevan un paso visible (stepper, selector de pedido) antes de guardar, igual que la voz: la app propone, la pantalla confirma. "Agregar a la venta" solo carga el carro; **Registrar venta** sigue siendo un toque aparte.
-- **Ráfaga:** un modo "siguiente foto" para inventario de repisa. Cada foto agrega una fila a una lista de conteo y se guarda todo junto al final.
+- **Inventario de repisa:** con el escáner continuo, **cada lectura suma 1 unidad** al conteo de su producto (la primera crea la fila); una foto reconocida también suma 1. Se ajusta con el stepper o con "conté siete" y se guarda todo junto al final.
 - **Voz:** combinable con lo hecho. En la ficha, "conté siete" o "agrégalo a la venta" eligen el botón; la frase pasa por la gramática y el botón sigue mostrando qué se va a hacer.
 
 ---
 
 ## 4. Experiencia de uso
 
-- **Entrada:** un botón de cámara (`camera.viewfinder`) en la toolbar de Productos y de Vender, y como Atajo de Siri ("Foto de producto en MyNatura", sumando un App Intent a V7).
+- **Entrada:** un botón de cámara (`camera.viewfinder`) en la toolbar de Productos y de Vender, y como Atajo de Siri ("Foto de producto en MyNatura").
+- **Código de barras sin foto:** la acción principal es **Escanear código de barras**, con lectura en vivo (`DataScannerViewController`, el mismo escáner de recepción).
+  - Si el EAN está asociado, la ficha aparece al instante. Un código de 5–7 dígitos también se prueba como código Natura.
+  - Si el EAN no se conoce, se pide una **foto de la etiqueta**: el EAN escaneado se suma a esa lectura, y al reconocer el producto aparece "Asociar EAN".
+  - La foto queda solo para lo que no tiene código o no se reconoce.
 - **Captura:**
   - vista de cámara (`AVCaptureSession` o `DataScannerViewController` con texto y códigos) con disparador grande;
   - en pantalla de 4,7", la ficha sube como hoja media y deja la cámara visible arriba.
