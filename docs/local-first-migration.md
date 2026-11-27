@@ -363,7 +363,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 - **Info.plist:** sin red local ni ATS, sin refresco en segundo plano (`BGTaskScheduler`) y sin prellenado de login.
 - **Quedan sin uso**, para no forzar una migración de SwiftData: los modelos `PendingMutation` y `DatasetSyncState`, los campos `syncState` y los de OCR. Se pueden quitar más adelante con un esquema versionado.
 - **Docs:** `CLAUDE.md`, `README.md` e `ios-app-design.md` (secciones de backend y sync marcadas como obsoletas).
-- **Pendiente con confirmación de la dueña del repo:** archivar el repo `mynatura` en GitHub.
+- **Pendiente, a confirmar:** archivar el repo `mynatura` en GitHub.
 
 ## 9. Riesgos
 
