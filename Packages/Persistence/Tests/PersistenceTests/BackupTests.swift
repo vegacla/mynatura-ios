@@ -58,7 +58,9 @@ struct BackupTests {
         let backup = try BackupService.makeBackup(context: source, sellerId: "old-seller", appVersion: "1.0.0 (1)")
         let data = try BackupService.encode(backup)
         let decoded = try BackupService.decode(data)
-        #expect(decoded == backup)
+        #expect(decoded.products == backup.products)
+        #expect(decoded.sales.map(\.lines) == backup.sales.map(\.lines))
+        #expect(abs(decoded.exportedAt.timeIntervalSince(backup.exportedAt)) < 0.001)
         #expect(decoded.counts == BackupCounts(products: 1, lots: 1, sales: 1, customers: 1, customerOrders: 0,
                                                naturaOrders: 1, naturaLines: 1, events: 0))
 

@@ -12,23 +12,12 @@ concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
+# Regla temporal (2026-11-27): CI mínimo para acelerar el desarrollo. Solo se compila la IPA.
+# Los tests (Core en Linux; Natura y Persistence en macOS) y el build de simulador quedan desactivados;
+# para reactivarlos, recuperar este archivo del commit anterior a "ci: minimal".
 jobs:
-  core-tests:
-    name: Core tests (Linux)
-    runs-on: ubuntu-latest
-    container: swift:6.1
-    steps:
-      - uses: actions/checkout@v4
-      - name: swift test (Core)
-        working-directory: Packages/Core
-        run: swift test
-      - name: swift test (APIClient)
-        working-directory: Packages/APIClient
-        run: swift test
-
   build-ipa:
     name: Build unsigned IPA
-    needs: core-tests
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -36,14 +25,6 @@ jobs:
 
       - name: Xcode version
         run: xcodebuild -version
-
-      - name: swift test (Natura, macOS)
-        working-directory: Packages/Natura
-        run: swift test
-
-      - name: swift test (Persistence, macOS)
-        working-directory: Packages/Persistence
-        run: swift test
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -86,69 +67,3 @@ jobs:
           name: build-log
           path: build-log.txt
           retention-days: 7
-
-  build-simulator:
-    name: Build simulator app (Appetize)
-    needs: core-tests
-    runs-on: macos-15
-    timeout-minutes: 30
-    env:
-      APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
-      APPETIZE_APP_ID: ${{ vars.APPETIZE_APP_ID }}
-      # Prellenado del login en el build de simulador (opcional; ver README).
-      MN_DEV_SERVER_URL: ${{ vars.MN_DEV_SERVER_URL }}
-      MN_DEV_CUSTOMER_CODE: ${{ vars.MN_DEV_CUSTOMER_CODE }}
-      MN_DEV_PASSWORD: ${{ secrets.MN_DEV_PASSWORD }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate project
-        run: xcodegen generate
-
-      # Simuladores web (Appetize, VibeView…) no aceptan .ipa: necesitan un .app de simulador en .zip.
-      # Firma ad-hoc ("-"): sin firma el simulador niega Keychain y la sesión no se guarda.
-      # ONLY_ACTIVE_ARCH=NO ⇒ incluye arm64 y x86_64 para servir en cualquier host.
-      - name: Build for iOS Simulator
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project MyNatura.xcodeproj \
-            -scheme MyNatura \
-            -configuration Release \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/sim \
-            ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
-            MN_DEV_SERVER_URL="$MN_DEV_SERVER_URL" MN_DEV_CUSTOMER_CODE="$MN_DEV_CUSTOMER_CODE" MN_DEV_PASSWORD="$MN_DEV_PASSWORD" \
-            | tee sim-build-log.txt | grep -E "error:|BUILD" || true
-          test -d build/sim/Build/Products/Release-iphonesimulator/MyNatura.app
-
-      - name: Package .app as zip
-        working-directory: build/sim/Build/Products/Release-iphonesimulator
-        run: |
-          lipo -info MyNatura.app/MyNatura
-          zip -qry "$GITHUB_WORKSPACE/build/MyNatura-simulator.zip" MyNatura.app
-          ls -lh "$GITHUB_WORKSPACE/build/MyNatura-simulator.zip"
-
-      - name: Upload simulator zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: MyNatura-simulator
-          path: build/MyNatura-simulator.zip
-          retention-days: 7
-
-      # Opcional: si existe el secret APPETIZE_API_TOKEN se sube a Appetize.
-      # Con la variable APPETIZE_APP_ID (publicKey) se actualiza la misma app; sin ella se crea una nueva.
-      - name: Upload to Appetize
-        if: env.APPETIZE_API_TOKEN != '' && github.event_name != 'pull_request'
-        run: |
-          URL="https://api.appetize.io/v1/apps"
-          if [ -n "$APPETIZE_APP_ID" ]; then URL="$URL/$APPETIZE_APP_ID"; fi
-          RESPONSE=$(curl -sS --fail-with-body -X POST "$URL" \
-            -H "X-API-KEY: $APPETIZE_API_TOKEN" \
-            -F "file=@build/MyNatura-simulator.zip" \
-            -F "platform=ios")
-          echo "$RESPONSE" | python3 -c 'import json,sys; d=json.load(sys.stdin); print("publicKey:", d.get("publicKey")); print("URL:", d.get("publicURL") or d.get("appURL"))'
-

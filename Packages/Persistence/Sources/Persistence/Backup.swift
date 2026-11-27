@@ -289,7 +289,10 @@ public enum BackupService {
 
     public static func encode(_ backup: BackupFile) throws -> Data {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(isoFormatter(fractional: true).string(from: date))
+        }
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(backup)
     }
@@ -297,7 +300,12 @@ public enum BackupService {
     public static func decode(_ data: Data) throws(BackupError) -> BackupFile {
         struct Header: Decodable { let format: String?; let version: Int? }
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let text = try decoder.singleValueContainer().decode(String.self)
+            guard let date = isoFormatter(fractional: true).date(from: text) ?? isoFormatter(fractional: false).date(from: text)
+            else { throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Fecha inválida: \(text)")) }
+            return date
+        }
         guard let header = try? decoder.decode(Header.self, from: data), header.format == BackupFile.formatName,
               let version = header.version else { throw .notABackup }
         guard version <= BackupFile.currentVersion else { throw .newerVersion(version) }
@@ -306,6 +314,13 @@ public enum BackupService {
         } catch {
             throw .unreadable(String(describing: error).prefix(200).description)
         }
+    }
+
+    /// ISO 8601 con milisegundos (para no perder el orden fino de lotes y ventas); se aceptan también sin ellos.
+    nonisolated static func isoFormatter(fractional: Bool) -> ISO8601DateFormatter {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = fractional ? [.withInternetDateTime, .withFractionalSeconds] : [.withInternetDateTime]
+        return formatter
     }
 
     /// Reemplaza los datos locales por los del respaldo, con el `sellerId` de la sesión actual. Conserva la sesión.
