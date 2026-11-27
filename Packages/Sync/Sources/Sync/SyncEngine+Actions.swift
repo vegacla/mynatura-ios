@@ -46,9 +46,10 @@ extension SyncEngine {
         return fetchAll(FetchDescriptor<PricingReasonRecord>(predicate: #Predicate { $0.code == code })).first?.reason
     }
 
-    // MARK: - Venta (§4.3, etapa 3)
+    // MARK: - Venta y obsequio (local, M2)
 
-    /// Crea la venta localmente, descuenta stock, encola `sale.create` e intenta enviarla.
+    /// Registra la venta en el iPhone: consume lotes según el método de costeo y guarda el costo de cada línea.
+    /// Las líneas a precio 0 (motivo Regalo) se guardan aparte como **obsequio a terceros** (pérdida, sin ingreso).
     public func registerSale(sellerId: String, lines: [SaleDraftLine], note: String?,
                              customerId: String?, customerName: String?) -> Result<String, ActionError> {
         guard !lines.isEmpty else { return .failure(ActionError("Agrega al menos un producto.")) }
@@ -56,52 +57,56 @@ extension SyncEngine {
         var requested: [String: Int] = [:]
         for line in lines { requested[line.productId, default: 0] += line.quantity }
 
-        var snapshots: [SaleLineSnapshot] = []
+        // Validar todo antes de tocar el inventario.
         for line in lines {
             guard let product = product(id: line.productId) else {
                 return .failure(ActionError("Uno de los productos ya no existe en el catálogo."))
             }
-            let available = stockItem(productId: line.productId)?.operationalQuantity ?? 0
+            let available = availableStock(productId: line.productId)
             let reason = pricingReason(code: line.reasonCode)
+            let isGift = OutflowRules.kind(forUnitPrice: line.finalPrice) == .gift
             do throws(SaleLineError) {
                 try CartRules.validateLine(quantity: line.quantity, finalPrice: line.finalPrice,
                                            suggested: product.lastSuggestedSale, reason: reason,
-                                           isSellable: product.isSellable, available: available)
+                                           isSellable: product.isSellable || isGift, available: available)
                 if let total = requested[line.productId], total > available {
                     throw .insufficientStock(available: available)
                 }
             } catch {
                 return .failure(ActionError("\(product.name): \(error.message)"))
             }
-            snapshots.append(SaleLineSnapshot(
-                sellerProductId: product.id, productName: product.name, naturaSku: product.naturaSku,
-                quantity: line.quantity, suggestedPesos: product.lastSuggestedSalePesos, finalPesos: line.finalPrice.pesos,
-                reasonCode: reason?.code, reasonNote: reason == nil ? nil : trimmedOrNil(line.reasonNote)))
         }
 
-        let saleId = UUID().uuidString.lowercased()
         let occurredAt = Date()
         let cleanNote = trimmedOrNil(note)
-        context.insert(LocalSale(id: saleId, sellerId: sellerId, occurredAt: occurredAt, note: cleanNote,
-                                 customerId: customerId, customerName: customerName, lines: snapshots, syncState: .pending))
+        var saleLines: [SaleLineSnapshot] = []
+        var giftLines: [SaleLineSnapshot] = []
+        for line in lines {
+            guard let product = product(id: line.productId) else { continue }
+            let reason = pricingReason(code: line.reasonCode)
+            let costing = consumeLots(sellerId: sellerId, productId: product.id, quantity: line.quantity)
+            let snapshot = SaleLineSnapshot(
+                sellerProductId: product.id, productName: product.name, naturaSku: product.naturaSku,
+                quantity: line.quantity, suggestedPesos: product.lastSuggestedSalePesos, finalPesos: line.finalPrice.pesos,
+                reasonCode: reason?.code, reasonNote: reason == nil ? nil : trimmedOrNil(line.reasonNote),
+                costUnitPesos: Self.unitCost(of: costing.allocations, quantity: line.quantity),
+                costAllocations: costing.allocations)
+            let isGift = OutflowRules.kind(forUnitPrice: line.finalPrice) == .gift
+            if isGift { giftLines.append(snapshot) } else { saleLines.append(snapshot) }
+            addEvent(sellerId: sellerId, productId: product.id, kind: isGift ? .gift : .sale, quantity: -line.quantity,
+                     note: cleanNote ?? (isGift ? "Obsequio" : "Venta"))
+        }
 
-        let input = CreateSaleInputDTO(
-            clientMutationId: saleId, occurredAt: occurredAt.ISO8601Format(), customerId: customerId, note: cleanNote,
-            lines: snapshots.map {
-                CreateSaleLineInputDTO(sellerProductId: $0.sellerProductId, quantity: $0.quantity,
-                                       finalUnitPriceCents: $0.finalPesos, pricingReasonCode: $0.reasonCode,
-                                       pricingReasonNote: $0.reasonNote)
-            })
-        let mutation = enqueue(.saleCreate, sellerId: sellerId, entityKey: saleId, payload: input,
-                               relatedProductIds: Array(Set(snapshots.map(\.sellerProductId))))
-        for line in snapshots {
-            adjustStock(productId: line.sellerProductId, sellerId: sellerId, delta: -line.quantity)
-            addLocalEvent(mutationId: mutation.id, sellerId: sellerId, productId: line.sellerProductId,
-                          kind: .sale, quantity: -line.quantity, note: cleanNote ?? "Venta")
+        var firstId: String?
+        for (kind, documentLines) in [(OutflowKind.sale, saleLines), (OutflowKind.gift, giftLines)] where !documentLines.isEmpty {
+            let id = UUID().uuidString.lowercased()
+            context.insert(LocalSale(id: id, sellerId: sellerId, occurredAt: occurredAt, note: cleanNote,
+                                     customerId: customerId, customerName: customerName, lines: documentLines,
+                                     syncState: .synced, kind: kind))
+            if firstId == nil { firstId = id }
         }
         save()
-        pushSoon(sellerId: sellerId)
-        return .success(saleId)
+        return .success(firstId ?? "")
     }
 
     /// Revisar venta fallida (§7.5): reemplaza las líneas y la reenvía con el mismo clientMutationId.
@@ -140,27 +145,29 @@ extension SyncEngine {
         return nil
     }
 
-    // MARK: - Inventario (etapa 5)
+    // MARK: - Inventario (local, M2)
 
-    /// Conciliación física: el conteo pasa a ser el stock operativo local.
+    /// Conciliación física: el conteo pasa a ser el stock. Si sobra, entra un lote (al último costo conocido);
+    /// si falta, se sacan unidades según el método de costeo (merma).
     @discardableResult
     public func createReconciliation(sellerId: String, productId: String, counted: Int, note: String?) -> ActionError? {
         guard counted >= 0 else { return ActionError("El conteo no puede ser negativo.") }
-        let current = stockItem(productId: productId)?.operationalQuantity ?? 0
-        let input = CreateReconciliationInputDTO(sellerProductId: productId, countedQuantity: counted,
-                                                 reasonNote: trimmedOrNil(note), reconciledAt: Date().ISO8601Format())
-        let mutation = enqueue(.inventoryReconciliationCreate, sellerId: sellerId, entityKey: productId,
-                               payload: input, relatedProductIds: [productId])
-        if let item = stockItem(productId: productId) {
-            item.operationalQuantity = counted
-            item.lastReconciledAt = .now
+        let current = availableStock(productId: productId)
+        let delta = counted - current
+        if delta > 0 {
+            let lastCost = product(id: productId)?.lastPurchasePesos ?? 0
+            addLot(sellerId: sellerId, productId: productId, quantity: delta,
+                   unitCost: lastCost > 0 ? Money(pesos: lastCost) : nil, source: lastCost > 0 ? .manual : .unknown,
+                   origin: .reconciliation, note: trimmedOrNil(note) ?? "Conteo físico: \(counted)")
+        } else if delta < 0 {
+            _ = consumeLots(sellerId: sellerId, productId: productId, quantity: -delta)
         } else {
-            adjustStock(productId: productId, sellerId: sellerId, delta: counted)
+            refreshStock(productId: productId, sellerId: sellerId)
         }
-        addLocalEvent(mutationId: mutation.id, sellerId: sellerId, productId: productId, kind: .reconciliation,
-                      quantity: counted - current, note: trimmedOrNil(note) ?? "Conteo físico: \(counted)")
+        stockItem(productId: productId)?.lastReconciledAt = .now
+        addEvent(sellerId: sellerId, productId: productId, kind: .reconciliation, quantity: delta,
+                 note: trimmedOrNil(note) ?? "Conteo físico: \(counted)")
         save()
-        pushSoon(sellerId: sellerId)
         return nil
     }
 
@@ -176,11 +183,7 @@ extension SyncEngine {
             return ActionError("El EAN \(ean) ya pertenece a \(owner.name).")
         }
         product.barcodes.append(ean)
-        product.syncState = .pending
-        enqueue(.catalogBarcodeAdd, sellerId: sellerId, entityKey: productId,
-                payload: BarcodePayload(sellerProductId: productId, ean: ean), relatedProductIds: [productId])
         save()
-        pushSoon(sellerId: sellerId)
         return nil
     }
 
@@ -194,11 +197,8 @@ extension SyncEngine {
         let localId = LocalID.make()
         context.insert(CatalogProduct(id: localId, sellerId: sellerId, naturaSku: sku, name: name, source: .manual,
                                       isSellable: true, lastPurchasePesos: 0, lastSuggestedSalePesos: nil,
-                                      barcodes: [], syncState: .pending))
-        enqueue(.catalogProductQuick, sellerId: sellerId, entityKey: localId,
-                payload: QuickProductPayload(localId: localId, naturaSku: sku, name: name), relatedProductIds: [localId])
+                                      barcodes: [], syncState: .synced))
         save()
-        pushSoon(sellerId: sellerId)
         return .success(localId)
     }
 
@@ -213,7 +213,8 @@ extension SyncEngine {
 
     // MARK: - Recepción (etapa 6)
 
-    /// Confirma la cantidad recibida (y precio de venta) de una línea. Offline: LWW sobre la misma línea.
+    /// Confirma la cantidad recibida (y precio de venta) de una línea. Lo recibido entra como lote de esa línea,
+    /// clasificado por su valor unitario (sin valor o 0 ⇒ gratis de Natura, costo 0).
     @discardableResult
     public func confirmReceivingLine(sellerId: String, lineId: String, quantity: Int, suggestedPesos: Int?) -> ActionError? {
         guard let line = naturaLine(id: lineId) else { return ActionError("Línea no encontrada.") }
@@ -229,29 +230,41 @@ extension SyncEngine {
         line.receivedQuantity = quantity
         line.suggestedPesos = suggestedPesos
         line.receivedConfirmedAt = .now
-        line.syncState = .pending
+        line.syncState = .synced
         recomputeTotals(order)
 
-        let productId = product(sku: line.naturaSku, sellerId: sellerId)?.id
-        let payload = ReceivingLinePayload(orderId: orderId, lineId: lineId, suggestedSaleUnitPriceCents: suggestedPesos,
-                                           receivedConfirmationQuantity: quantity)
-        let mutation: PendingMutation
-        if let existing = coalescible(.receivingLineConfirm, entityKey: lineId, sellerId: sellerId) {
-            existing.payload = PayloadCoding.encode(payload)
-            existing.status = .pending
-            existing.nextAttemptAt = nil
-            mutation = existing
-        } else {
-            mutation = enqueue(.receivingLineConfirm, sellerId: sellerId, entityKey: lineId, payload: payload,
-                               relatedProductIds: productId.map { [$0] } ?? [])
-        }
-        if let productId, delta != 0 {
-            adjustStock(productId: productId, sellerId: sellerId, delta: delta)
-            addLocalEvent(mutationId: mutation.id, sellerId: sellerId, productId: productId,
-                          kind: .receipt, quantity: delta, note: "Pedido \(order.orderNumber)")
+        if let product = product(sku: line.naturaSku, sellerId: sellerId) {
+            if let suggestedPesos, suggestedPesos > 0 { product.lastSuggestedSalePesos = suggestedPesos }
+            if delta > 0 {
+                let lineLot = lotRecords(productId: product.id).first { $0.naturaOrderLineId == lineId }
+                if let lineLot {
+                    lineLot.quantity += delta
+                    lineLot.remaining += delta
+                    refreshStock(productId: product.id, sellerId: sellerId)
+                } else {
+                    let classification = lotClassification(for: line)
+                    addLot(sellerId: sellerId, productId: product.id, quantity: delta, unitCost: classification.unitCost,
+                           source: classification.source, origin: .naturaLine, naturaOrderLineId: lineId,
+                           note: "Pedido \(order.orderNumber)", receivedAt: order.deliveredAt ?? .now)
+                }
+            } else if delta < 0 {
+                // Primero se descuenta del lote de esta línea; lo que falte, según el método.
+                var toRemove = -delta
+                if let lineLot = lotRecords(productId: product.id).first(where: { $0.naturaOrderLineId == lineId }) {
+                    let taken = min(lineLot.remaining, toRemove)
+                    lineLot.remaining -= taken
+                    lineLot.quantity = max(lineLot.quantity - taken, 0)
+                    toRemove -= taken
+                }
+                if toRemove > 0 { _ = consumeLots(sellerId: sellerId, productId: product.id, quantity: toRemove) }
+                refreshStock(productId: product.id, sellerId: sellerId)
+            }
+            if delta != 0 {
+                addEvent(sellerId: sellerId, productId: product.id, kind: .receipt, quantity: delta,
+                         note: "Pedido \(order.orderNumber)")
+            }
         }
         save()
-        pushSoon(sellerId: sellerId)
         return nil
     }
 
@@ -306,23 +319,15 @@ extension SyncEngine {
         return count
     }
 
-    /// Cerrar / reabrir pedido (solo online). Primero envía las recepciones pendientes.
+    /// Cerrar / reabrir la recepción de un pedido (local, sin conexión).
     public func setReceivingClosed(sellerId: String, orderId: String, closed: Bool) async -> ActionError? {
-        guard connectivity.isOnline else { return ActionError("Necesitas conexión para cerrar o reabrir el pedido.") }
-        await pushPending(sellerId: sellerId)
-        let lineIds = Set(lines(orderId: orderId).map(\.id))
-        if pendingMutations(sellerId: sellerId).contains(where: { lineIds.contains($0.entityKey) }) {
-            return ActionError("Hay recepciones sin sincronizar en este pedido. Revísalas en Ajustes.")
+        guard let order = fetchAll(FetchDescriptor<NaturaOrder>(predicate: #Predicate { $0.id == orderId })).first else {
+            return ActionError("Pedido no encontrado.")
         }
-        switch await fetch(.receivingReview(orderId: orderId, close: closed)) {
-        case .success(let response):
-            applyNaturaOrderDetail(response.order, sellerId: sellerId)
-            save()
-            return nil
-        case .failure(let error):
-            handle(error)
-            return ActionError(error.userMessage)
-        }
+        order.reviewStatus = closed ? .closed : .draft
+        order.receivingClosedAt = closed ? .now : nil
+        save()
+        return nil
     }
 
     /// Vuelve a descargar el detalle de un pedido Natura.
@@ -379,50 +384,31 @@ extension SyncEngine {
 
     // MARK: - Clientes (etapa 8)
 
-    /// Crea o edita un cliente localmente y encola la mutación. Devuelve el id (local o real).
+    /// Crea o edita un cliente en el iPhone. Devuelve su id.
     public func saveCustomer(sellerId: String, customerId: String?, name: String, rut: String?, phone: String?,
                              notes: String?) -> Result<String, ActionError> {
         let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard CustomerRules.isValidName(displayName) else { return .failure(ActionError("Ingresa el nombre del cliente.")) }
-        let input = CustomerInputDTO(displayName: displayName, rut: trimmedOrNil(rut), phone: trimmedOrNil(phone),
-                                     notes: trimmedOrNil(notes))
 
         if let customerId,
            let customer = fetchAll(FetchDescriptor<Customer>(predicate: #Predicate { $0.id == customerId })).first {
             customer.rename(displayName)
-            customer.rut = input.rut
-            customer.phone = input.phone
-            customer.notes = input.notes
+            customer.rut = trimmedOrNil(rut)
+            customer.phone = trimmedOrNil(phone)
+            customer.notes = trimmedOrNil(notes)
             customer.updatedAt = .now
-            customer.syncState = .pending
-            if let create = coalescible(.customerCreate, entityKey: customerId, sellerId: sellerId),
-               var payload = PayloadCoding.decode(CustomerCreatePayload.self, from: create.payload) {
-                payload.input = input
-                create.payload = PayloadCoding.encode(payload)
-                create.status = .pending
-            } else if let update = coalescible(.customerUpdate, entityKey: customerId, sellerId: sellerId) {
-                update.payload = PayloadCoding.encode(CustomerUpdatePayload(customerId: customerId, input: input))
-                update.status = .pending
-            } else {
-                enqueue(.customerUpdate, sellerId: sellerId, entityKey: customerId,
-                        payload: CustomerUpdatePayload(customerId: customerId, input: input))
-            }
             save()
-            pushSoon(sellerId: sellerId)
             return .success(customerId)
         }
 
         let localId = LocalID.make()
-        context.insert(Customer(id: localId, sellerId: sellerId, displayName: displayName, rut: input.rut,
-                                phone: input.phone, notes: input.notes, syncState: .pending))
-        enqueue(.customerCreate, sellerId: sellerId, entityKey: localId,
-                payload: CustomerCreatePayload(localId: localId, input: input))
+        context.insert(Customer(id: localId, sellerId: sellerId, displayName: displayName, rut: trimmedOrNil(rut),
+                                phone: trimmedOrNil(phone), notes: trimmedOrNil(notes), syncState: .synced))
         save()
-        pushSoon(sellerId: sellerId)
         return .success(localId)
     }
 
-    /// Crea o edita un pedido de cliente (100 % offline, §4.7). Un cliente nuevo se crea primero en local.
+    /// Crea o edita un pedido de cliente en el iPhone (§4.7). Un cliente nuevo se crea primero.
     public func saveCustomerOrder(sellerId: String, orderId: String?, customerId: String?, newCustomerName: String?,
                                   cycle: Int, status: CustomerOrderStatus, note: String?,
                                   lines: [CustomerOrderLineSnapshot]) -> Result<String, ActionError> {
@@ -450,7 +436,7 @@ extension SyncEngine {
         let order = existing ?? {
             let created = CustomerOrder(id: LocalID.make(), sellerId: sellerId, customerId: customer.id,
                                         customerDisplayName: customer.displayName, cycle: cycle, status: status,
-                                        note: trimmedOrNil(note), orderedAt: .now, syncState: .pending)
+                                        note: trimmedOrNil(note), orderedAt: .now, syncState: .synced)
             context.insert(created)
             return created
         }()
@@ -461,30 +447,8 @@ extension SyncEngine {
         order.note = trimmedOrNil(note)
         order.lines = lines
         order.updatedAt = .now
-        order.syncState = .pending
-
-        let input = CustomerOrderInputDTO(
-            customerId: customer.id, newCustomerName: nil, cycle: cycle, status: status.rawValue, note: order.note,
-            orderedAt: order.orderedAt.ISO8601Format(),
-            lines: lines.map {
-                CustomerOrderLineInputDTO(sellerProductId: $0.sellerProductId, quantity: $0.quantity,
-                                          suggestedUnitPriceCents: $0.suggestedPesos, finalUnitPriceCents: $0.finalPesos,
-                                          note: $0.note)
-            })
-        let payload = CustomerOrderPayload(orderId: order.id, input: input)
-        if let create = coalescible(.customerOrderCreate, entityKey: order.id, sellerId: sellerId) {
-            create.payload = PayloadCoding.encode(payload)
-            create.status = .pending
-        } else if existing == nil {
-            enqueue(.customerOrderCreate, sellerId: sellerId, entityKey: order.id, payload: payload)
-        } else if let update = coalescible(.customerOrderUpdate, entityKey: order.id, sellerId: sellerId) {
-            update.payload = PayloadCoding.encode(payload)
-            update.status = .pending
-        } else {
-            enqueue(.customerOrderUpdate, sellerId: sellerId, entityKey: order.id, payload: payload)
-        }
+        order.syncState = .synced
         save()
-        pushSoon(sellerId: sellerId)
         return .success(order.id)
     }
 
@@ -501,12 +465,8 @@ extension SyncEngine {
         }
     }
 
-    public func refreshCustomerOrder(sellerId: String, orderId: String) async {
-        guard connectivity.isOnline, !LocalID.isLocal(orderId),
-              case .success(let response) = await fetch(.customerOrder(id: orderId)) else { return }
-        applyCustomerOrderDetail(response.order, sellerId: sellerId)
-        save()
-    }
+    /// Los pedidos de clientes son locales: no hay nada que descargar.
+    public func refreshCustomerOrder(sellerId: String, orderId: String) async {}
 
     // MARK: - Cola: reintentar / descartar (§4.8, etapa 9)
 
@@ -586,18 +546,11 @@ extension SyncEngine {
         return nil
     }
 
-    // MARK: - Ajustes (solo online)
+    // MARK: - Ajustes
 
-    /// Cambia FIFO/LIFO en el backend. Devuelve un mensaje de error o nil.
+    /// Compatibilidad: FIFO/LIFO como método de costeo local.
     public func updateIssueStrategy(_ strategy: IssueStrategy, sellerId: String) async -> String? {
-        switch await fetch(.updateSettings(inventoryIssueStrategy: strategy.rawValue)) {
-        case .success(let response):
-            applySettings(response.settings, sellerId: sellerId)
-            save()
-            return nil
-        case .failure(let error):
-            handle(error)
-            return error.userMessage
-        }
+        setCostingMethod(CostingMethod(strategy), sellerId: sellerId)
+        return nil
     }
 }

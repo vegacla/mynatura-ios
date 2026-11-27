@@ -4,7 +4,7 @@ import Persistence
 import SwiftData
 import SwiftUI
 
-/// Reporte de margen (etapa 10): venta − costo de lotes (FIFO/LIFO calculado por el backend).
+/// Reporte de ganancias (docs/local-first-migration.md §4.6): ventas − costo − obsequios, con costo de lotes local.
 struct MarginReportScreen: View {
     enum Period: String, CaseIterable, Identifiable {
         case today = "Hoy", week = "7 días", month = "Este mes", days30 = "30 días", all = "Todo"
@@ -33,14 +33,10 @@ struct MarginReportScreen: View {
     var body: some View {
         let start = period.start()
         let inPeriod = sales.filter { sale in start.map { sale.occurredAt >= $0 } ?? true }
-        let withCost = inPeriod.filter { $0.cost != nil }
-        let summary = withCost.reduce(into: MarginSummary()) { result, sale in
-            result.revenue = result.revenue + sale.total
-            result.cost = result.cost + (sale.cost ?? .zero)
-            result.units += sale.units
-            result.salesCount += 1
-        }
-        let byProduct = productMargins(withCost)
+        let report = ProfitReport.build(inPeriod.flatMap(\.outflowLines))
+        let salesCount = inPeriod.filter { $0.kind == .sale }.count
+        let giftsCount = inPeriod.filter { $0.kind == .gift }.count
+        let byProduct = productMargins(inPeriod.filter { $0.kind == .sale })
         List {
             Picker("Periodo", selection: $period) {
                 ForEach(Period.allCases) { Text($0.rawValue).tag($0) }
@@ -48,22 +44,30 @@ struct MarginReportScreen: View {
             .pickerStyle(.segmented)
             Section {
                 HStack(spacing: 8) {
-                    MiniStat("Venta", value: summary.revenue.formatted)
-                    MiniStat("Costo", value: summary.cost.formatted)
-                    MiniStat("Margen", value: summary.margin.formatted, tone: summary.margin.pesos >= 0 ? .success : .danger)
+                    MiniStat("Venta", value: report.revenue.formatted)
+                    MiniStat("Costo", value: report.costOfSales.formatted)
+                    MiniStat("Ganancia", value: report.profit.formatted, tone: report.profit.pesos >= 0 ? .success : .danger)
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
-                LabeledContent("Ventas", value: "\(summary.salesCount)")
-                LabeledContent("Unidades", value: "\(summary.units)")
-                if let rate = summary.marginRate {
-                    LabeledContent("Margen sobre venta", value: rate.formatted(.percent.precision(.fractionLength(1))))
-                }
+                LabeledContent("Margen bruto de ventas") { MoneyText(report.grossMargin) }
+                LabeledContent("Obsequios (pérdida)") { MoneyText(Money(pesos: -report.giftLoss.pesos)) }
+                LabeledContent("Ganancia") { MoneyText(report.profit).fontWeight(.semibold) }
+                LabeledContent("Ventas", value: "\(salesCount)")
+                if giftsCount > 0 { LabeledContent("Obsequios", value: "\(giftsCount)") }
             } footer: {
-                if inPeriod.count > withCost.count {
-                    Text("\(inPeriod.count - withCost.count) venta(s) sin costo aún (pendientes de sincronizar) no se incluyen.")
+                VStack(alignment: .leading, spacing: 4) {
+                    if report.unitsAtReferenceCost > 0 {
+                        Text("\(report.unitsAtReferenceCost) unidad(es) gratis de Natura valorizadas a precio de referencia (\(report.referenceCostAmount.formatted)).")
+                    }
+                    if report.unitsWithoutKnownCost > 0 {
+                        Text("\(report.unitsWithoutKnownCost) unidad(es) gratis sin costo conocido (nunca compradas): costo 0.")
+                    }
+                    if !report.isComplete {
+                        Text("\(report.linesWithPendingCost) línea(s) con costo pendiente: la ganancia está incompleta. Completa el costo del lote en la ficha del producto.")
+                    }
                 }
             }
-            Section("Por producto") {
+            Section("Por producto (ventas)") {
                 ForEach(byProduct, id: \.name) { item in
                     HStack {
                         VStack(alignment: .leading) {
@@ -76,7 +80,7 @@ struct MarginReportScreen: View {
                 }
             }
         }
-        .navigationTitle("Margen")
+        .navigationTitle("Ganancias")
     }
 
     private func productMargins(_ sales: [LocalSale]) -> [(name: String, units: Int, revenue: Money, margin: Money)] {
@@ -86,7 +90,7 @@ struct MarginReportScreen: View {
                 var entry = totals[line.productName] ?? (0, 0, 0)
                 entry.units += line.quantity
                 entry.revenue += line.finalPesos * line.quantity
-                entry.cost += (line.costUnitPesos ?? 0) * line.quantity
+                entry.cost += line.effectiveAllocations.reduce(0) { $0 + ($1.totalCost?.pesos ?? 0) }
                 totals[line.productName] = entry
             }
         }

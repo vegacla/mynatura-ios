@@ -73,6 +73,10 @@ public final class StockItem {
 public final class SellerSettings {
     @Attribute(.unique) public var sellerId: String
     public var issueStrategyRaw: String
+    /// Método de costeo local (FIFO, LIFO, Mayor precio). nil = el que venía del backend.
+    public var costingMethodRaw: String?
+    /// Cuándo el inventario pasó a ser local (lotes en el iPhone). nil = todavía se baja del backend.
+    public var localInventoryAdoptedAt: Date?
 
     public init(sellerId: String, issueStrategy: IssueStrategy) {
         self.sellerId = sellerId
@@ -82,6 +86,11 @@ public final class SellerSettings {
     public var issueStrategy: IssueStrategy {
         get { IssueStrategy(rawValue: issueStrategyRaw) ?? .fifo }
         set { issueStrategyRaw = newValue.rawValue }
+    }
+
+    public var costingMethod: CostingMethod {
+        get { costingMethodRaw.flatMap(CostingMethod.init(rawValue:)) ?? CostingMethod(issueStrategy) }
+        set { costingMethodRaw = newValue.rawValue }
     }
 }
 

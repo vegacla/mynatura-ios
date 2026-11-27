@@ -4,12 +4,15 @@ public enum InventoryEventKind: String, Sendable, Codable, CaseIterable {
     case receipt
     case reconciliation
     case sale
+    /// Obsequio a terceros (precio 0): pérdida.
+    case gift
 
     public var label: String {
         switch self {
         case .receipt: "Recepción"
         case .reconciliation: "Conciliación"
         case .sale: "Venta"
+        case .gift: "Obsequio"
         }
     }
 }

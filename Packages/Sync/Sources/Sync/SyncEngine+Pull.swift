@@ -8,8 +8,15 @@ extension SyncEngine {
     /// Descarga todos los datasets (§7.4) y los aplica sin pisar entidades con cambios pendientes.
     public func pullAll(sellerId: String) async {
         guard !isPulling else { return }
+        if isLocalInventory(sellerId: sellerId) {
+            await pullNaturaOnly(sellerId: sellerId)
+            return
+        }
         isPulling = true
-        defer { isPulling = false }
+        defer {
+            isPulling = false
+            adoptLocalInventoryIfNeeded(sellerId: sellerId)
+        }
 
         for dataset in Dataset.allCases { syncState(sellerId: sellerId, dataset: dataset).status = .syncing }
 
@@ -52,6 +59,44 @@ extension SyncEngine {
             applyCustomerOrderDetail(response.order, sellerId: sellerId)
         }
         save()
+    }
+
+    /// Modo local (M2): del backend solo llegan productos nuevos, motivos de precio y pedidos Natura (import y OCR
+    /// siguen en el backend hasta M3–M4). Stock, ventas, clientes y pedidos de clientes ya no se bajan.
+    func pullNaturaOnly(sellerId: String) async {
+        isPulling = true
+        defer { isPulling = false }
+        async let catalog = fetch(.catalogProducts)
+        async let reasons = fetch(.pricingReasons)
+        async let orders = fetch(.naturaOrders)
+        apply(await catalog, .catalog, sellerId) { self.mergeCatalog($0.products, sellerId: sellerId) }
+        apply(await reasons, .pricingReasons, sellerId) { self.applyPricingReasons($0.reasons) }
+        var naturaNeedingDetail: [String] = []
+        apply(await orders, .naturaOrders, sellerId) { naturaNeedingDetail = self.applyNaturaOrders($0.orders, sellerId: sellerId) }
+        save()
+        for id in naturaNeedingDetail {
+            guard case .success(let response) = await fetch(.naturaOrder(id: id)) else { continue }
+            applyNaturaOrderDetail(response.order, sellerId: sellerId)
+        }
+        save()
+    }
+
+    /// Productos del backend en modo local: agrega los nuevos y suma EAN; nunca pisa precios, nombre ni "vendible".
+    func mergeCatalog(_ remote: [CatalogProductDTO], sellerId: String) {
+        let local = fetchAll(FetchDescriptor<CatalogProduct>(predicate: #Predicate { $0.sellerId == sellerId }))
+        let byId = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let bySku = Dictionary(local.map { (Normalize.naturaSku($0.naturaSku).lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+        for dto in remote {
+            if let product = byId[dto.id] ?? bySku[Normalize.naturaSku(dto.naturaSku).lowercased()] {
+                for ean in dto.barcodes where !product.barcodes.contains(ean) { product.barcodes.append(ean) }
+                if product.lastSuggestedSalePesos == nil { product.lastSuggestedSalePesos = dto.lastSuggestedSaleUnitPriceCents }
+                if product.lastPurchasePesos == 0, dto.lastPurchaseUnitPriceCents > 0 {
+                    product.lastPurchasePesos = dto.lastPurchaseUnitPriceCents
+                }
+            } else {
+                upsertProduct(dto, existing: nil, sellerId: sellerId)
+            }
+        }
     }
 
     private func apply<R>(_ result: Result<R, APIError>, _ dataset: Dataset, _ sellerId: String, _ body: (R) -> Void) {
@@ -101,7 +146,7 @@ extension SyncEngine {
     }
 
     @discardableResult
-    private func upsertProduct(_ dto: CatalogProductDTO, existing: CatalogProduct?, sellerId: String) -> CatalogProduct {
+    func upsertProduct(_ dto: CatalogProductDTO, existing: CatalogProduct?, sellerId: String) -> CatalogProduct {
         let source = ProductSource(rawValue: dto.source) ?? .manual
         if let product = existing {
             product.naturaSku = dto.naturaSku
@@ -223,7 +268,8 @@ extension SyncEngine {
         let byId = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let remoteIds = Set(remote.map(\.id))
         let pendingOrderIds = ordersWithPendingLines(sellerId: sellerId)
-        for order in local where !remoteIds.contains(order.id) && !pendingOrderIds.contains(order.id) {
+        let isLocal = isLocalInventory(sellerId: sellerId)
+        for order in local where !isLocal && !remoteIds.contains(order.id) && !pendingOrderIds.contains(order.id) {
             deleteLines(orderId: order.id)
             context.delete(order)
         }
@@ -234,13 +280,14 @@ extension SyncEngine {
                 context.insert(created)
                 return created
             }()
-            applyOrderFields(dto, to: order, keepTotals: pendingOrderIds.contains(dto.id))
+            applyOrderFields(dto, to: order, keepTotals: pendingOrderIds.contains(dto.id), keepReceiving: isLocal)
             if !order.linesLoaded || order.reviewStatus == .draft { needingDetail.append(dto.id) }
         }
         return needingDetail
     }
 
-    private func applyOrderFields(_ dto: NaturaOrderDTO, to order: NaturaOrder, keepTotals: Bool) {
+    /// `keepReceiving`: en modo local la recepción (cerrado, revisión y totales) es del iPhone y no se pisa.
+    private func applyOrderFields(_ dto: NaturaOrderDTO, to order: NaturaOrder, keepTotals: Bool, keepReceiving: Bool = false) {
         order.orderNumber = dto.orderNumber
         order.cycle = dto.cycle
         order.subCycle = dto.subCycle
@@ -251,6 +298,7 @@ extension SyncEngine {
         order.totalValuePesos = dto.totalValueCents
         order.ocrStatusRaw = dto.receiptOcrStatus
         order.ocrProcessedAt = dto.receiptOcrProcessedAt
+        if keepReceiving { return }
         order.receivingClosedAt = dto.receivingClosedAt
         order.reviewStatusRaw = dto.receivingReviewStatus
         if !keepTotals {
@@ -267,11 +315,13 @@ extension SyncEngine {
             context.insert(created)
             return created
         }()
+        let isLocal = isLocalInventory(sellerId: sellerId)
         let local = lines(orderId: orderId)
         let byId = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let remoteIds = Set(detail.lines.map(\.id))
-        for line in local where !remoteIds.contains(line.id) && line.syncState == .synced { context.delete(line) }
+        for line in local where !isLocal && !remoteIds.contains(line.id) && line.syncState == .synced { context.delete(line) }
         for (index, dto) in detail.lines.enumerated() {
+            let isNew = byId[dto.id] == nil
             let line = byId[dto.id] ?? {
                 let created = NaturaOrderLine(id: dto.id, orderId: orderId, sellerId: sellerId, position: index,
                                               naturaSku: dto.naturaSku, productName: dto.productName, quantity: dto.quantity)
@@ -286,14 +336,14 @@ extension SyncEngine {
             line.proposedSuggestedPesos = dto.proposedSuggestedSaleUnitPriceCents
             line.proposedReceivedQuantity = dto.proposedReceivedConfirmationQuantity
             line.barcodes = dto.barcodes
-            if line.syncState == .synced {
+            if line.syncState == .synced && (!isLocal || isNew) {
                 line.suggestedPesos = dto.suggestedSaleUnitPriceCents
                 line.receivedQuantity = dto.receivedConfirmationQuantity
                 line.receivedConfirmedAt = dto.receivedConfirmedAt
             }
         }
-        let hasPending = lines(orderId: orderId).contains { $0.syncState != .synced }
-        applyOrderFields(detail.order, to: order, keepTotals: hasPending)
+        let hasPending = isLocal || lines(orderId: orderId).contains { $0.syncState != .synced }
+        applyOrderFields(detail.order, to: order, keepTotals: hasPending, keepReceiving: isLocal)
         order.linesLoaded = true
         if hasPending { recomputeTotals(order) }
     }

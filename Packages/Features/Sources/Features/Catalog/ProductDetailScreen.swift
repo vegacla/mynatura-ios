@@ -40,6 +40,7 @@ struct ProductDetailScreen: View {
                 }
                 BarcodesSection(product: product, sellerId: sellerId)
                 ReconciliationSection(productId: productId, sellerId: sellerId, stock: stock.first)
+                LotsSection(productId: productId)
                 Section("Kardex") {
                     let rows = Kardex.rows(events.map(\.kardexEntry))
                     if rows.isEmpty {
@@ -196,6 +197,82 @@ private struct ReconciliationSection: View {
         } else {
             voiceMessage = "Dictado: " + understood.joined(separator: " y ") + ". Revisa y toca Guardar conciliación."
             Haptics.tap()
+        }
+    }
+}
+
+/// Lotes del producto (docs/local-first-migration.md §4): stock por lote, costo y su origen; completar costos pendientes.
+private struct LotsSection: View {
+    @Environment(SyncEngine.self) private var sync
+    @Query private var lots: [InventoryLotRecord]
+    @State private var editingLotId: String?
+    @State private var costInput = Money.zero
+    @State private var errorMessage: String?
+
+    init(productId: String) {
+        _lots = Query(filter: #Predicate<InventoryLotRecord> { $0.productId == productId }, sort: \.receivedAt, order: .reverse)
+    }
+
+    var body: some View {
+        if !lots.isEmpty {
+            Section {
+                ForEach(lots) { lot in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(lot.receivedAt.formatted(date: .abbreviated, time: .omitted))
+                            Spacer()
+                            Text("\(lot.remaining) / \(lot.quantity)").monospacedDigit()
+                        }
+                        .font(.subheadline)
+                        HStack(spacing: 6) {
+                            StatusBadge(sourceLabel(lot.source), tone: lot.source == .unknown ? .warning : .neutral)
+                            if let cost = lot.unitCost { Text(cost.formatted) } else { Text("Costo pendiente") }
+                            if let note = lot.note { Text("· \(note)").lineLimit(1) }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        if lot.source == .unknown {
+                            if editingLotId == lot.id {
+                                HStack {
+                                    MoneyField("Costo unitario", money: $costInput).frame(maxWidth: 140)
+                                    Button("Guardar") { complete(lot) }.buttonStyle(.bordered)
+                                }
+                            } else {
+                                Button("Completar costo") {
+                                    costInput = .zero
+                                    editingLotId = lot.id
+                                }
+                                .font(.caption)
+                            }
+                        }
+                    }
+                }
+                if let errorMessage { AlertBanner(errorMessage, tone: .danger) }
+            } header: {
+                Text("Lotes")
+            } footer: {
+                Text("Las unidades gratis de Natura entran a costo 0; al salir se valorizan con el precio de compra conocido según el método de costeo.")
+            }
+        }
+    }
+
+    private func sourceLabel(_ source: CostSource) -> String {
+        switch source {
+        case .purchased: "Comprado"
+        case .free: "Gratis Natura"
+        case .manual: "Manual"
+        case .unknown: "Sin costo"
+        }
+    }
+
+    private func complete(_ lot: InventoryLotRecord) {
+        if let error = sync.completeLotCost(lotId: lot.id, unitCost: costInput) {
+            errorMessage = error.message
+            Haptics.error()
+        } else {
+            errorMessage = nil
+            editingLotId = nil
+            Haptics.success()
         }
     }
 }

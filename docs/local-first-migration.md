@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada (2026-11-26). **M1 implementada** (`Packages/Core/Sources/Core/Costing.swift`, tests en `CostingTests`); M2–M8 pendientes.
+> **Estado:** decisión tomada (2026-11-26). **M1 y M2 implementadas** (sin probar en iPhone); M3–M8 pendientes.
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 
@@ -204,7 +204,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | # | Etapa | Entregable |
 |---|---|---|
 | M1 ✅ | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
-| M2 | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
+| M2 ✅ | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
 | M3 | Natura directo | Paquete `Natura`: login minegocio + import de pedidos entregados (JSON + HTML) + revista; reimportar todo en el iPhone |
 | M4 | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
 | M5 | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
@@ -213,6 +213,30 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | M8 | Pedido Natura (después) | `natura-order-placement.md` con el flujo GSP, directo desde la app |
 
 ---
+
+## 8.1 Implementación M2
+
+- **Lotes en SwiftData** (`InventoryLotRecord`: cantidad, saldo, costo, `CostSource`, origen y línea Natura). **El stock = suma de los saldos** (`StockItem` se recalcula desde los lotes).
+- **Paso a modo local (una vez, automático):** cuando el stock ya se bajó bien del backend, cada producto con stock queda con un **lote de saldo inicial** (costo = último costo de compra; si es 0, gratis).
+  - Las mutaciones pendientes se descartan, porque su efecto ya está en el stock local.
+  - Se marca `SellerSettings.localInventoryAdoptedAt`.
+  - Si el primer pull falla, no se adopta (evita un inventario vacío).
+- **Acciones locales**, sin cola ni envío:
+  - **venta:** consume lotes según el método y guarda las asignaciones y el costo por línea;
+  - **líneas a precio 0** (motivo Regalo): **obsequio** aparte (`LocalSale.kind = .gift`), permitido también para productos no vendibles;
+  - **conciliación:** si sobra, lote nuevo al último costo (o pendiente); si falta, merma según el método;
+  - **recepción:** lote por línea Natura, clasificado por valor (sin valor o 0 ⇒ gratis); al bajar la cantidad se descuenta primero de ese lote;
+  - **EAN, producto rápido, clientes, pedidos de clientes:** locales;
+  - **cerrar/reabrir recepción:** local, sin conexión;
+  - **método de costeo:** local (FIFO, LIFO, Mayor precio).
+- **Pull en modo local:** solo productos nuevos (sumando EAN, sin pisar precios ni "vendible"), motivos de precio y pedidos Natura (sin pisar recepción, cierre ni totales locales). **Import y OCR siguen en el backend** hasta M3 y M4.
+- **Pantallas:**
+  - reporte **Ganancias** (ventas − costo − obsequios, con unidades a precio de referencia, sin costo conocido y pendientes);
+  - sección **Lotes** en la ficha del producto, con "Completar costo" para lotes sin costo, que revaloriza las salidas;
+  - badge "Obsequio" en el historial;
+  - método de costeo en Ajustes;
+  - las consultas por voz cuentan solo ventas.
+- **Sin tests de `Sync` en CI** (solo compilación): las reglas están en `Core` (M1, con tests); la integración se verifica en el iPhone.
 
 ## 9. Riesgos
 

@@ -91,14 +91,12 @@ private struct SessionSection: View {
     }
 }
 
-/// FIFO / LIFO (§4.8). Se cambia solo con conexión.
+/// Método de costeo (docs/local-first-migration.md §4.4): local, sin conexión.
 private struct IssueStrategySection: View {
     @Environment(SyncEngine.self) private var sync
     @Query private var settings: [SellerSettings]
     let sellerId: String
     let isOffline: Bool
-    @State private var isSaving = false
-    @State private var errorMessage: String?
 
     init(sellerId: String, isOffline: Bool) {
         self.sellerId = sellerId
@@ -106,34 +104,20 @@ private struct IssueStrategySection: View {
         _settings = Query(filter: #Predicate<SellerSettings> { $0.sellerId == sellerId })
     }
 
-    private var strategy: IssueStrategy { settings.first?.issueStrategy ?? .fifo }
+    private var method: CostingMethod { settings.first?.costingMethod ?? .fifo }
 
     var body: some View {
         Section {
-            Picker("Estrategia", selection: Binding(get: { strategy }, set: { newValue in save(newValue) })) {
-                ForEach(IssueStrategy.allCases, id: \.self) { option in
+            Picker("Método", selection: Binding(get: { method }, set: { sync.setCostingMethod($0, sellerId: sellerId) })) {
+                ForEach(CostingMethod.allCases, id: \.self) { option in
                     Text(option.label).tag(option)
                 }
             }
             .pickerStyle(.segmented)
-            .disabled(isOffline || isSaving || settings.isEmpty)
-            if let errorMessage {
-                AlertBanner(errorMessage, tone: .danger)
-            }
         } header: {
-            Text("Salida de inventario")
+            Text("Método de costeo")
         } footer: {
-            Text(isOffline ? "Disponible solo con conexión." : strategy.detail)
-        }
-    }
-
-    private func save(_ newValue: IssueStrategy) {
-        guard newValue != strategy else { return }
-        isSaving = true
-        errorMessage = nil
-        Task {
-            errorMessage = await sync.updateIssueStrategy(newValue, sellerId: sellerId)
-            isSaving = false
+            Text(method.detail + " Una unidad que llegó gratis de Natura se valoriza con el precio de compra conocido según este método. Cambiarlo afecta solo las salidas futuras.")
         }
     }
 }

@@ -198,7 +198,7 @@ struct VoiceQuerySheet: View {
         let end = interval.end
         let sales = fetch(FetchDescriptor<LocalSale>(predicate: #Predicate {
             $0.sellerId == id && $0.occurredAt >= start && $0.occurredAt < end
-        })).filter { $0.syncState != .failed }
+        })).filter { $0.syncState != .failed && $0.kind == .sale }
         let total = sales.reduce(Money.zero) { $0 + $1.total }
         return VoiceAnswers.sales(period: period, count: sales.count, total: total)
     }

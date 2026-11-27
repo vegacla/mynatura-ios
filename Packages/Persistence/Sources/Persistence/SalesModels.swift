@@ -79,9 +79,12 @@ public struct SaleLineSnapshot: Codable, Sendable, Equatable, Hashable {
     public var reasonCode: String?
     public var reasonNote: String?
     public var costUnitPesos: Int?
+    /// Cómo se valorizó la salida (lotes, precio de referencia, pendiente). nil en ventas antiguas del backend.
+    public var costAllocations: [CostAllocation]?
 
     public init(sellerProductId: String, productName: String, naturaSku: String, quantity: Int,
-                suggestedPesos: Int?, finalPesos: Int, reasonCode: String?, reasonNote: String?, costUnitPesos: Int? = nil) {
+                suggestedPesos: Int?, finalPesos: Int, reasonCode: String?, reasonNote: String?, costUnitPesos: Int? = nil,
+                costAllocations: [CostAllocation]? = nil) {
         self.sellerProductId = sellerProductId
         self.productName = productName
         self.naturaSku = naturaSku
@@ -91,9 +94,19 @@ public struct SaleLineSnapshot: Codable, Sendable, Equatable, Hashable {
         self.reasonCode = reasonCode
         self.reasonNote = reasonNote
         self.costUnitPesos = costUnitPesos
+        self.costAllocations = costAllocations
     }
 
     public var total: Money { Money(pesos: finalPesos * quantity) }
+
+    /// Asignaciones de costo; en ventas antiguas se derivan del costo unitario (o quedan pendientes).
+    public var effectiveAllocations: [CostAllocation] {
+        if let costAllocations { return costAllocations }
+        if let costUnitPesos {
+            return [CostAllocation(lotId: "legacy", quantity: quantity, unitCost: Money(pesos: costUnitPesos), basis: .lot)]
+        }
+        return [CostAllocation(lotId: "legacy", quantity: quantity, unitCost: nil, basis: .pending)]
+    }
 }
 
 /// Venta: descargada del backend o creada en el teléfono antes de sincronizar (§6 "LocalSale").
@@ -110,9 +123,12 @@ public final class LocalSale {
     public var linesData: Data
     public var syncStateRaw: String
     public var errorMessage: String?
+    /// Venta u obsequio a terceros (precio 0, pérdida).
+    public var kindRaw: String = OutflowKind.sale.rawValue
 
     public init(id: String, sellerId: String, serverId: String? = nil, occurredAt: Date, note: String?,
-                customerId: String?, customerName: String?, lines: [SaleLineSnapshot], syncState: EntitySyncState) {
+                customerId: String?, customerName: String?, lines: [SaleLineSnapshot], syncState: EntitySyncState,
+                kind: OutflowKind = .sale) {
         self.id = id
         self.sellerId = sellerId
         self.serverId = serverId
@@ -122,6 +138,17 @@ public final class LocalSale {
         self.customerName = customerName
         self.linesData = (try? JSONEncoder().encode(lines)) ?? Data()
         self.syncStateRaw = syncState.rawValue
+        self.kindRaw = kind.rawValue
+    }
+
+    public var kind: OutflowKind { OutflowKind(rawValue: kindRaw) ?? .sale }
+
+    /// Líneas para el reporte de ganancias (`ProfitReport`).
+    public var outflowLines: [OutflowLine] {
+        lines.map {
+            OutflowLine(kind: kind, productId: $0.sellerProductId, quantity: $0.quantity,
+                        unitPrice: Money(pesos: $0.finalPesos), allocations: $0.effectiveAllocations)
+        }
     }
 
     public var lines: [SaleLineSnapshot] {

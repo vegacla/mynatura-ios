@@ -62,11 +62,9 @@ struct NaturaOrderDetailScreen: View {
                             if working { ProgressView() }
                         }
                     }
-                    .disabled(working || !sync.connectivity.isOnline)
+                    .disabled(working)
                 } footer: {
-                    if !sync.connectivity.isOnline {
-                        OnlineOnlyNote(text: "Cerrar y reabrir requiere conexión.")
-                    } else if order.isClosed {
+                    if order.isClosed {
                         Text("Pedido cerrado: recepción, OCR y precios quedan bloqueados.")
                     }
                 }

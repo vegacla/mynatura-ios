@@ -1,11 +1,13 @@
 import Features
 import Persistence
+import Sync
 import SwiftData
 import SwiftUI
 
 /// Navegación raíz: 5 pestañas (§3). Ajustes muestra badge con mutaciones fallidas.
 struct RootTabView: View {
     @Environment(AppRouter.self) private var router
+    @Environment(SyncEngine.self) private var sync
     @Query private var mutations: [PendingMutation]
     @State private var voiceLaunch: VoiceLaunch?
     let sellerId: String
@@ -41,7 +43,11 @@ struct RootTabView: View {
                 .tag(AppTab.settings)
         }
         // Atajos de Siri (V7): abren la acción de voz pedida, ya con sesión iniciada.
-        .onAppear { consumePendingVoice() }
+        .onAppear {
+            consumePendingVoice()
+            // Inventario local (M2): si el stock ya se bajó alguna vez, pasa a lotes locales.
+            sync.adoptLocalInventoryIfNeeded(sellerId: sellerId)
+        }
         .onChange(of: router.pendingVoice) { _, _ in consumePendingVoice() }
         .sheet(item: $voiceLaunch) { launch in
             VoiceLaunchSheet(launch: launch, sellerId: sellerId)

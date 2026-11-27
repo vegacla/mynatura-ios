@@ -32,13 +32,15 @@ public final class SyncEngine {
 
     /// Push de la cola y luego pull completo.
     public func syncNow(sellerId: String) async {
-        await pushPending(sellerId: sellerId)
+        if !isLocalInventory(sellerId: sellerId) {
+            await pushPending(sellerId: sellerId)
+        }
         await pullAll(sellerId: sellerId)
     }
 
     /// Tras una escritura local: si hay red, intenta enviar de inmediato (§7.2 paso 4).
     func pushSoon(sellerId: String) {
-        guard connectivity.isOnline else { return }
+        guard connectivity.isOnline, !isLocalInventory(sellerId: sellerId) else { return }
         Task { await self.pushPending(sellerId: sellerId) }
     }
 

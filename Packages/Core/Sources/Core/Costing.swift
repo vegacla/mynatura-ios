@@ -79,6 +79,11 @@ public enum LotClassifier {
     public struct Classification: Equatable, Sendable {
         public let source: CostSource
         public let unitCost: Money?
+
+        public init(source: CostSource, unitCost: Money?) {
+            self.source = source
+            self.unitCost = unitCost
+        }
     }
 
     /// "$12.990" → comprado · "-", "$0", "0" → gratis · vacío o ilegible → desconocido.
@@ -109,7 +114,7 @@ public enum LotClassifier {
 }
 
 /// Cómo se valorizó una porción de la salida.
-public enum CostBasis: String, Equatable, Sendable, Codable {
+public enum CostBasis: String, Equatable, Hashable, Sendable, Codable {
     /// Costo del propio lote (comprado o manual).
     case lot
     /// Unidad gratis de Natura valorizada con el precio conocido del método.
@@ -120,12 +125,19 @@ public enum CostBasis: String, Equatable, Sendable, Codable {
     case pending
 }
 
-public struct CostAllocation: Equatable, Sendable {
+public struct CostAllocation: Equatable, Hashable, Sendable, Codable {
     public let lotId: String
     public let quantity: Int
     /// nil = pendiente.
     public let unitCost: Money?
     public let basis: CostBasis
+
+    public init(lotId: String, quantity: Int, unitCost: Money?, basis: CostBasis) {
+        self.lotId = lotId
+        self.quantity = quantity
+        self.unitCost = unitCost
+        self.basis = basis
+    }
 
     public var totalCost: Money? { unitCost.map { $0 * quantity } }
 }

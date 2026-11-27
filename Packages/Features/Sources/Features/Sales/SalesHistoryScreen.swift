@@ -65,7 +65,10 @@ struct SaleRow: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(sale.customerName ?? "Sin cliente").font(.body.weight(.medium))
+                    HStack(spacing: 6) {
+                        Text(sale.customerName ?? "Sin cliente").font(.body.weight(.medium))
+                        if sale.kind == .gift { StatusBadge("Obsequio", tone: .warning) }
+                    }
                     Text(sale.occurredAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption).foregroundStyle(.secondary)
                     if let note = sale.note {
