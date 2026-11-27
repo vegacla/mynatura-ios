@@ -49,6 +49,21 @@ public final class LocalStore {
             .first { Normalize.naturaSku($0.naturaSku).lowercased() == normalized }
     }
 
+    func naturaLine(id: String) -> NaturaOrderLine? {
+        fetchAll(FetchDescriptor<NaturaOrderLine>(predicate: #Predicate { $0.id == id })).first
+    }
+
+    func lines(orderId: String) -> [NaturaOrderLine] {
+        fetchAll(FetchDescriptor<NaturaOrderLine>(predicate: #Predicate { $0.orderId == orderId }, sortBy: [SortDescriptor(\.position)]))
+    }
+
+    /// Unidades recibidas y pendientes del pedido, desde sus líneas.
+    func recomputeTotals(_ order: NaturaOrder) {
+        let totals = ReceivingRules.totals(lines: lines(orderId: order.id).map { (ordered: $0.quantity, received: $0.receivedQuantity) })
+        order.receivedUnits = totals.received
+        order.pendingUnits = totals.pending
+    }
+
     /// Restos de la cola del backend (anterior a M7): se descartan.
     func clearLegacyQueue(sellerId: String) {
         for mutation in fetchAll(FetchDescriptor<PendingMutation>(predicate: #Predicate { $0.sellerId == sellerId })) {
