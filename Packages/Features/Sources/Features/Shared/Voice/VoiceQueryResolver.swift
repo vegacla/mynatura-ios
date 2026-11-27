@@ -1,6 +1,7 @@
 import Core
 import Foundation
 import Persistence
+import Store
 import SwiftData
 
 /// Respuestas a consultas y navegación por voz con datos locales. Lo comparten "Preguntar" y el Asistente.
@@ -9,6 +10,7 @@ struct VoiceQueryResolver {
     let context: ModelContext
     let sellerId: String
     let router: AppRouter
+    let store: LocalStore
     var logUnrecognized = false
     /// Cierra la hoja antes de navegar.
     let close: () -> Void
@@ -41,6 +43,8 @@ struct VoiceQueryResolver {
         case .payments:
             let snapshot = accountSnapshot()
             return VoiceAnswers.payments(snapshot?.documents, readAt: snapshot?.documentsFetchedAt)
+        case .receivables(let name):
+            return receivablesAnswer(name)
         }
     }
 
@@ -124,6 +128,7 @@ struct VoiceQueryResolver {
         case .orderDraft: tab = nil; screen = .orderDraft
         case .offers: tab = nil; screen = .offers
         case .account: tab = nil; screen = .account
+        case .receivables: tab = nil; screen = .receivables
         case .customerOrder(let name):
             tab = nil
             let id = sellerId
@@ -151,6 +156,18 @@ struct VoiceQueryResolver {
             }
         }
         return VoiceAnswer(text: "Abriendo \(destination.label).")
+    }
+
+    private func receivablesAnswer(_ name: String?) -> VoiceAnswer {
+        guard let name else {
+            return VoiceAnswers.debtors(store.debtors(sellerId: sellerId).map { ($0.name, $0.debt.balancePesos) })
+        }
+        let id = sellerId
+        let customers = fetch(FetchDescriptor<Customer>(predicate: #Predicate { $0.sellerId == id }))
+        let match = CustomerMatcher.resolve(name: name, in: customers.map { VoiceCandidate(id: $0.id, name: $0.displayName) })
+        guard case .found(let customerId) = match else { return VoiceAnswer(text: "No encontré a “\(name)” entre tus clientes.") }
+        let display = customers.first { $0.id == customerId }?.displayName ?? name
+        return VoiceAnswers.customerDebt(name: display, debt: store.customerDebt(sellerId: sellerId, customerId: customerId))
     }
 
     private func accountSnapshot() -> NaturaAccountSnapshot? {

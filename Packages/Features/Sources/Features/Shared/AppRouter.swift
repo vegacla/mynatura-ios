@@ -44,7 +44,7 @@ public final class AppRouter {
 
 /// Pantallas que se abren por voz en una hoja (navegación por voz).
 public enum AppScreen: Identifiable, Hashable, Sendable {
-    case profit, salesHistory, magazine, orderDraft, offers, account
+    case profit, salesHistory, magazine, orderDraft, offers, account, receivables
     case customerOrder(id: String)
 
     public var id: String {
@@ -76,6 +76,7 @@ public struct AppScreenSheet: View {
                 case .orderDraft: NaturaOrderDraftEntry(sellerId: sellerId)
                 case .offers: CycleOffersScreen(sellerId: sellerId)
                 case .account: NaturaAccountScreen(sellerId: sellerId)
+                case .receivables: ReceivablesScreen(sellerId: sellerId)
                 case .customerOrder(let id): CustomerOrderEditor(sellerId: sellerId, orderId: id)
                 }
             }

@@ -112,7 +112,9 @@ struct CustomerForm: View {
 
 /// Ficha del cliente + sus pedidos y su historial de compras (etapa 10).
 struct CustomerDetailScreen: View {
+    @Environment(LocalStore.self) private var store
     @Query private var customers: [Customer]
+    @Query private var payments: [CustomerPayment]
     @Query private var orders: [CustomerOrder]
     @Query private var sales: [LocalSale]
     let customerId: String
@@ -124,6 +126,7 @@ struct CustomerDetailScreen: View {
         _customers = Query(filter: #Predicate<Customer> { $0.id == customerId })
         _orders = Query(filter: #Predicate<CustomerOrder> { $0.customerId == customerId }, sort: \.orderedAt, order: .reverse)
         _sales = Query(filter: #Predicate<LocalSale> { $0.sellerId == sellerId }, sort: \.occurredAt, order: .reverse)
+        _payments = Query(filter: #Predicate<CustomerPayment> { $0.customerId == customerId }, sort: \.paidAt, order: .reverse)
     }
 
     var body: some View {
@@ -139,6 +142,11 @@ struct CustomerDetailScreen: View {
                     if let rut = customer.rut { LabeledContent("RUT", value: rut) }
                     if let phone = customer.phone { LabeledContent("Teléfono", value: phone) }
                     if let notes = customer.notes { Text(notes).font(.footnote).foregroundStyle(.secondary) }
+                }
+                // Se recalcula al cambiar ventas o abonos (las @Query refrescan la vista).
+                let debt = store.customerDebt(sellerId: sellerId, customerId: customer.id)
+                if !debt.isEmpty || !payments.isEmpty || customerSales.contains(where: \.onCredit) {
+                    CustomerDebtSection(customer: customer, debt: debt, payments: payments, sellerId: sellerId)
                 }
                 Section("Pedidos (\(orders.count))") {
                     if orders.isEmpty { Text("Sin pedidos").foregroundStyle(.secondary) }

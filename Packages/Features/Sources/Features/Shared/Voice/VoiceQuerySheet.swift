@@ -3,6 +3,7 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
+import Store
 
 /// Consultas por voz desde cualquier pantalla (V4 de docs/voice-interaction-proposal.md):
 /// stock, encargos de un cliente, ventas de un periodo y ciclo. Responde en pantalla y, si se quiere, en voz alta.
@@ -11,6 +12,7 @@ struct VoiceQuerySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Environment(AppRouter.self) private var router
+    @Environment(LocalStore.self) private var store
     @AppStorage("voice.logUnrecognized") private var logUnrecognized = false
     @AppStorage("voice.allowServerRecognition") private var allowServer = false
     @AppStorage("voice.spokenAnswers") private var spokenAnswers = true
@@ -124,7 +126,7 @@ struct VoiceQuerySheet: View {
     }
 
     private var resolver: VoiceQueryResolver {
-        VoiceQueryResolver(context: context, sellerId: sellerId, router: router, logUnrecognized: logUnrecognized,
+        VoiceQueryResolver(context: context, sellerId: sellerId, router: router, store: store, logUnrecognized: logUnrecognized,
                            close: { dismiss() })
     }
 

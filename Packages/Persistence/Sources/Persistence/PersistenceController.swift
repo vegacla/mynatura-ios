@@ -23,6 +23,7 @@ public enum PersistenceController {
             InventoryLotRecord.self,
             NaturaAccountSnapshot.self,
             NaturaOrderDraft.self,
+            CustomerPayment.self,
         ])
     }
 
@@ -63,6 +64,7 @@ public enum PersistenceController {
         try context.delete(model: InventoryLotRecord.self)
         try context.delete(model: NaturaAccountSnapshot.self)
         try context.delete(model: NaturaOrderDraft.self)
+        try context.delete(model: CustomerPayment.self)
         try context.save()
     }
 }

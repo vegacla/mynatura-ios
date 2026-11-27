@@ -247,7 +247,7 @@ struct AssistantSheet: View {
     // MARK: Datos
 
     private var resolver: VoiceQueryResolver {
-        VoiceQueryResolver(context: context, sellerId: sellerId, router: router, logUnrecognized: logUnrecognized,
+        VoiceQueryResolver(context: context, sellerId: sellerId, router: router, store: store, logUnrecognized: logUnrecognized,
                            close: { dismiss() })
     }
 
@@ -326,6 +326,7 @@ struct AssistantSheet: View {
         case .customer(let id):
             result.hasPhone = (customer(id)?.phone ?? "").filter(\.isNumber).count >= 8
             result.hasCustomerOrders = !customerOrders(id).isEmpty
+            result.hasDebt = !store.customerDebt(sellerId: sellerId, customerId: id).isEmpty
         case .cycle, .account, .magazine:
             break
         }
@@ -428,6 +429,20 @@ struct AssistantSheet: View {
             guard let customer = customer(id),
                   let link = NaturaMagazine.whatsAppURL(phone: customer.phone ?? "", text: "Hola!") else { return }
             openURL(link)
+        case (.customerDebt, .customer(let id)):
+            reply([VoiceAnswers.customerDebt(name: customer(id)?.displayName ?? "El cliente",
+                                             debt: store.customerDebt(sellerId: sellerId, customerId: id))])
+        case (.customerRemindDebt, .customer(let id)):
+            guard let customer = customer(id) else { return }
+            let debt = store.customerDebt(sellerId: sellerId, customerId: id)
+            let text = CustomerDebtRules.reminderText(firstName: customer.displayName.split(separator: " ").first.map(String.init), debt: debt)
+            if let link = NaturaMagazine.whatsAppURL(phone: customer.phone ?? "", text: text) {
+                openURL(link)
+            } else {
+                sharing = SharedText(text: text)
+            }
+        case (.customerPayment, .customer(let id)):
+            path.append(.customer(id))
         case (.customerCall, .customer(let id)):
             let digits = (customer(id)?.phone ?? "").filter { $0.isNumber || $0 == "+" }
             if let url = URL(string: "tel:\(digits)") { openURL(url) }

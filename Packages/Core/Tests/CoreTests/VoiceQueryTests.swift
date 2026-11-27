@@ -37,6 +37,9 @@ struct VoiceQueryTests {
         #expect(ask("¿Cuándo vence mi pago?") == [.query(.payments)])
         #expect(ask("¿debo algo?") == [.query(.payments)])
         #expect(ask("¿tengo atrasos?") == [.query(.payments)])
+        #expect(ask("¿quién me debe?") == [.query(.receivables(name: nil))])
+        #expect(ask("¿cuánto me debe Ana?") == [.query(.receivables(name: "Ana"))])
+        #expect(ask("¿qué tengo por cobrar?") == [.query(.receivables(name: nil))])
         #expect(ask("¿cuánto vendí esta semana?") == [.query(.sales(.thisWeek))])
         #expect(ask("¿cuánto?") == [.unrecognized("cuánto")])
     }

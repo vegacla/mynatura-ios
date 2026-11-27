@@ -368,6 +368,9 @@ public enum CommandGrammar {
         "a", "dime", "cuentame", "sabes", "mi", "mis", "unidades", "unidad", "todavia", "aun",
     ]
 
+    /// Lo que deben los clientes: "¿quién me debe?", "¿cuánto me debe Ana?", "¿qué tengo por cobrar?".
+    static let receivableWords: Set<String> = ["debe", "deben", "fiado", "fiados", "cobrar", "cobro"]
+
     /// Pagos a Natura: "¿cuándo vence mi pago?", "¿debo algo?", "¿tengo atrasos?".
     static let paymentWords: Set<String> = [
         "vence", "vencen", "vencimiento", "vencimientos", "pago", "pagos", "pagar", "debo", "deuda", "deudas",
@@ -390,6 +393,12 @@ public enum CommandGrammar {
                 }
             }
             return [.navigate(destination)]
+        }
+        if !texts.isDisjoint(with: receivableWords) {
+            let name = words.filter { !receivableWords.contains($0.text) && !queryFillers.contains($0.text)
+                && !["quien", "quienes", "cuanto", "cuantos", "me", "nos", "por", "plata", "dinero", "algo"].contains($0.text) }
+            let spoken = VoiceText.joinRaw(name)
+            return [.query(.receivables(name: spoken.isEmpty ? nil : spoken))]
         }
         if texts.contains("credito") || texts.contains("cupo") {
             return [.query(.credit)]

@@ -125,6 +125,8 @@ public final class LocalSale {
     public var errorMessage: String?
     /// Venta u obsequio a terceros (precio 0, pérdida).
     public var kindRaw: String = OutflowKind.sale.rawValue
+    /// Fiado: el cliente la paga después (se descuenta con sus abonos, `CustomerPayment`).
+    public var onCredit: Bool = false
 
     public init(id: String, sellerId: String, serverId: String? = nil, occurredAt: Date, note: String?,
                 customerId: String?, customerName: String?, lines: [SaleLineSnapshot], syncState: EntitySyncState,

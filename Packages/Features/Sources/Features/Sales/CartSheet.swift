@@ -19,6 +19,7 @@ struct CartSheet: View {
     @State private var choosingCustomer = false
     @State private var dictating = false
     @State private var voiceMessage: String?
+    @State private var onCredit = false
     let sellerId: String
 
     init(sellerId: String) {
@@ -71,6 +72,9 @@ struct CartSheet: View {
                         .foregroundStyle(.primary)
                         TextField("Nota general (opcional)", text: Binding(
                             get: { draft.note }, set: { draft.note = $0 }), axis: .vertical)
+                        if draft.customerId != nil {
+                            Toggle("Fiado: queda por cobrar", isOn: $onCredit)
+                        }
                         LabeledContent("Total") {
                             MoneyText(total).font(.title3.weight(.bold))
                         }
@@ -92,8 +96,8 @@ struct CartSheet: View {
                     .disabled(lines.isEmpty)
                     .listRowBackground(Color.clear)
                 } footer: {
-                    if !store.connectivity.isOnline {
-                        Text("Sin conexión: la venta se guarda en el iPhone y se sincroniza sola al volver la red.")
+                    if onCredit, drafts.first?.customerId != nil {
+                        Text("La venta queda en lo que te debe \(drafts.first?.customerName ?? "el cliente"). Registra sus pagos en su ficha.")
                     }
                 }
             }
@@ -134,7 +138,8 @@ struct CartSheet: View {
         }
         let sourceOrderId = draft.sourceOrderId
         switch store.registerSale(sellerId: sellerId, lines: saleLines, note: draft.note,
-                                 customerId: draft.customerId, customerName: draft.customerName) {
+                                 customerId: draft.customerId, customerName: draft.customerName,
+                                 onCredit: onCredit && draft.customerId != nil) {
         case .success:
             if let sourceOrderId {
                 store.setCustomerOrderStatus(sellerId: sellerId, orderId: sourceOrderId, status: .fulfilled)

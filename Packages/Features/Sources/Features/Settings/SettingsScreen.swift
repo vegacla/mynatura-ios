@@ -30,6 +30,7 @@ public struct SettingsScreen: View {
                 Section("Historial y reportes") {
                     NavigationLink("Historial de ventas") { SalesHistoryScreen(sellerId: sellerId) }
                     NavigationLink("Ganancias") { MarginReportScreen(sellerId: sellerId) }
+                    NavigationLink("Por cobrar (fiado)") { ReceivablesScreen(sellerId: sellerId) }
                 }
                 Section {
                     Button("Borrar datos del iPhone", role: .destructive) { confirmingErase = true }

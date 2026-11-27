@@ -54,6 +54,7 @@ struct VoiceSettingsScreen: View {
         "¿Cuánto vendí esta semana?",
         "¿Cuándo cierra el ciclo?",
         "¿Cuánto crédito tengo? · ¿Cuándo vence mi pago?",
+        "¿Quién me debe? · ¿Cuánto me debe Ana? · Abre por cobrar",
         "Ir a recepción · Abre la revista · Muéstrame las ofertas",
         "Abre el pedido de María · Abre el pedido del ciclo",
     ]

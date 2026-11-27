@@ -14,6 +14,8 @@ public enum VoiceQuery: Equatable, Sendable {
     case credit
     /// "¿Cuándo vence mi pago?" · "¿Debo algo?" · "¿Tengo atrasos?"
     case payments
+    /// "¿Quién me debe?" (nil) · "¿Cuánto me debe Ana?" (nombre)
+    case receivables(name: String?)
 }
 
 /// Ciclo vigente leído de Natura (M3/M6).

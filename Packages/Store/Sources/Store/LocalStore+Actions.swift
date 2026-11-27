@@ -53,8 +53,11 @@ extension LocalStore {
     /// Registra la venta en el iPhone: consume lotes según el método de costeo y guarda el costo de cada línea.
     /// Las líneas a precio 0 (motivo Regalo) se guardan aparte como **obsequio a terceros** (pérdida, sin ingreso).
     public func registerSale(sellerId: String, lines: [SaleDraftLine], note: String?,
-                             customerId: String?, customerName: String?) -> Result<String, ActionError> {
+                             customerId: String?, customerName: String?, onCredit: Bool = false) -> Result<String, ActionError> {
         guard !lines.isEmpty else { return .failure(ActionError("Agrega al menos un producto.")) }
+        if onCredit, customerId == nil {
+            return .failure(ActionError("Para dejar la venta por cobrar, elige el cliente."))
+        }
 
         var requested: [String: Int] = [:]
         for line in lines { requested[line.productId, default: 0] += line.quantity }
@@ -102,9 +105,11 @@ extension LocalStore {
         var firstId: String?
         for (kind, documentLines) in [(OutflowKind.sale, saleLines), (OutflowKind.gift, giftLines)] where !documentLines.isEmpty {
             let id = UUID().uuidString.lowercased()
-            context.insert(LocalSale(id: id, sellerId: sellerId, occurredAt: occurredAt, note: cleanNote,
-                                     customerId: customerId, customerName: customerName, lines: documentLines,
-                                     syncState: .synced, kind: kind))
+            let sale = LocalSale(id: id, sellerId: sellerId, occurredAt: occurredAt, note: cleanNote,
+                                 customerId: customerId, customerName: customerName, lines: documentLines,
+                                 syncState: .synced, kind: kind)
+            sale.onCredit = onCredit && kind == .sale
+            context.insert(sale)
             if firstId == nil { firstId = id }
         }
         save()

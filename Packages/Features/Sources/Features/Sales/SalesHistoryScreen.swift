@@ -33,6 +33,7 @@ struct SalesHistoryScreen: View {
 }
 
 struct SaleRow: View {
+    @Environment(LocalStore.self) private var store
     let sale: LocalSale
     let reasonLabels: [String: String]
     let sellerId: String
@@ -55,12 +56,19 @@ struct SaleRow: View {
                     }
                 }
             }
+            if sale.kind == .sale, sale.customerId != nil {
+                Button(sale.onCredit ? "Quitar de por cobrar" : "Marcar como fiado (por cobrar)") {
+                    _ = store.setSaleOnCredit(saleId: sale.id, onCredit: !sale.onCredit)
+                }
+                .font(.caption)
+            }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(sale.customerName ?? "Sin cliente").font(.body.weight(.medium))
                         if sale.kind == .gift { StatusBadge("Obsequio", tone: .warning) }
+                        if sale.onCredit { StatusBadge("Fiado", tone: .info) }
                     }
                     Text(sale.occurredAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption).foregroundStyle(.secondary)

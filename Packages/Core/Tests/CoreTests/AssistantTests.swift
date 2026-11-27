@@ -34,6 +34,9 @@ struct AssistantTests {
         let customer = AssistantActions.available(for: .customer("c1"), context: AssistantContext(hasPhone: false))
         #expect(!customer.map(\.id).contains(.customerWhatsApp))
         #expect(!customer.map(\.id).contains(.customerLastOrder))
+        let owing = AssistantActions.available(for: .customer("c1"), context: AssistantContext(hasDebt: true))
+        #expect(Array(owing.prefix(3).map(\.id)) == [.customerPending, .customerDebt, .customerRemindDebt])
+        #expect(AssistantActions.match("recuérdale que me debe", in: owing)?.id == .customerRemindDebt)
     }
 
     @Test func phrasesPickActions() {

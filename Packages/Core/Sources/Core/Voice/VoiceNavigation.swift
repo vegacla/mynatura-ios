@@ -13,6 +13,7 @@ public enum VoiceDestination: Equatable, Sendable {
     case orderDraft
     case offers
     case account
+    case receivables
     /// El pedido más reciente de ese cliente.
     case customerOrder(name: String)
 
@@ -30,6 +31,7 @@ public enum VoiceDestination: Equatable, Sendable {
         case .orderDraft: "el pedido del ciclo"
         case .offers: "las ofertas del ciclo"
         case .account: "tu cuenta Natura"
+        case .receivables: "lo que te deben"
         case .customerOrder(let name): "el pedido de \(name)"
         }
     }
@@ -54,6 +56,7 @@ public enum VoiceNavigation {
             let name = rest.dropFirst(index + 2).filter { !fillers.contains($0) }.joined(separator: " ")
             if !name.isEmpty, !["natura", "ciclo"].contains(name) { return .customerOrder(name: name) }
         }
+        if texts.contains("cobrar") || texts.contains("fiado") || texts.contains("fiados") { return .receivables }
         if texts.contains("revista") || texts.contains("catalogo") && texts.contains("ciclo") { return .magazine }
         if texts.contains("ofertas") || texts.contains("oferta") { return .offers }
         if texts.contains("ganancias") || texts.contains("ganancia") || texts.contains("margen") { return .profit }

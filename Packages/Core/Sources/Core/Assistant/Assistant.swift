@@ -15,7 +15,7 @@ public enum AssistantActionID: String, CaseIterable, Sendable {
     case productSalesMonth, productOffer, productShare, productAddToDraft
     // Cliente
     case customerPending, customerLastOrder, customerNewOrder, customerPurchases, customerDetail
-    case customerSendMagazine, customerWhatsApp, customerCall
+    case customerSendMagazine, customerWhatsApp, customerCall, customerDebt, customerRemindDebt, customerPayment
     // Ciclo
     case cycleInfo, cycleWhatToOrder, cycleOrderDraft, cycleOffers, cycleMagazine
     // Cuenta
@@ -46,9 +46,12 @@ public struct AssistantContext: Sendable, Equatable {
     public var hasCustomerOrders: Bool
     public var hasOffer: Bool
     public var hasCycle: Bool
+    /// El cliente tiene ventas fiadas por cobrar.
+    public var hasDebt: Bool
 
     public init(isOnline: Bool = true, stock: Int = 0, isSellable: Bool = true, hasOpenReceivingLine: Bool = false,
-                hasPhone: Bool = false, hasCustomerOrders: Bool = false, hasOffer: Bool = false, hasCycle: Bool = false) {
+                hasPhone: Bool = false, hasCustomerOrders: Bool = false, hasOffer: Bool = false, hasCycle: Bool = false,
+                hasDebt: Bool = false) {
         self.isOnline = isOnline
         self.stock = stock
         self.isSellable = isSellable
@@ -57,6 +60,7 @@ public struct AssistantContext: Sendable, Equatable {
         self.hasCustomerOrders = hasCustomerOrders
         self.hasOffer = hasOffer
         self.hasCycle = hasCycle
+        self.hasDebt = hasDebt
     }
 }
 
@@ -86,6 +90,9 @@ public enum AssistantActions {
         make(.customerWhatsApp, "WhatsApp", "message", ["whatsapp", "escribele", "mensaje"]),
         make(.customerCall, "Llamar", "phone", ["llamala", "llamalo", "llamar"]),
         make(.customerNewOrder, "Nuevo pedido", "plus", ["nuevo pedido", "pedido nuevo"], changes: true),
+        make(.customerDebt, "¿Cuánto me debe?", "banknote", ["cuanto me debe", "me debe", "deuda", "por cobrar", "fiado"]),
+        make(.customerRemindDebt, "Recordar cobro", "bell", ["recordar cobro", "recuerdale", "cobrale", "cobrar"]),
+        make(.customerPayment, "Registrar pago", "banknote", ["me pago", "pago", "abono", "registrar pago"], changes: true),
         make(.customerDetail, "Ver ficha", "person.text.rectangle", ["ver ficha", "ficha", "datos"]),
 
         make(.cycleInfo, "¿Cuándo cierra?", "calendar", ["cuando cierra", "que ciclo", "cuantos dias"]),
@@ -121,6 +128,7 @@ public enum AssistantActions {
             ids = list
         case .customer:
             var list: [AssistantActionID] = [.customerPending, .customerLastOrder]
+            if context.hasDebt { list.insert(contentsOf: [.customerDebt, .customerRemindDebt], at: 1); list.append(.customerPayment) }
             if context.hasPhone { list += [.customerSendMagazine, .customerWhatsApp, .customerCall] }
             list += [.customerPurchases, .customerNewOrder, .customerDetail]
             if !context.hasCustomerOrders { list.removeAll { $0 == .customerLastOrder } }

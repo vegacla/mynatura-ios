@@ -25,6 +25,8 @@ public struct BackupFile: Codable, Sendable, Equatable {
     public var pricingReasons: [PricingReason]
     /// Borradores del pedido Natura (desde M8; ausente en respaldos anteriores).
     public var orderDrafts: [OrderDraft]?
+    /// Abonos de clientes (desde la versión con fiado).
+    public var customerPayments: [Payment]?
 
     public var counts: BackupCounts {
         BackupCounts(products: products.count, lots: lots.count, sales: sales.count, customers: customers.count,
@@ -149,6 +151,7 @@ extension BackupFile {
         var customerName: String?
         var kindRaw: String
         var lines: [SaleLineSnapshot]
+        var onCredit: Bool?
     }
 
     public struct Customer: Codable, Sendable, Equatable {
@@ -202,6 +205,14 @@ extension BackupFile {
         var receivedQuantity: Int
         var receivedConfirmedAt: Date?
         var barcodes: [String]
+    }
+
+    public struct Payment: Codable, Sendable, Equatable {
+        var id: String
+        var customerId: String
+        var amountPesos: Int
+        var paidAt: Date
+        var note: String?
     }
 
     public struct OrderDraft: Codable, Sendable, Equatable {
@@ -266,7 +277,8 @@ public enum BackupService {
             sales: try all(FetchDescriptor<LocalSale>(predicate: #Predicate { $0.sellerId == sellerId },
                                                       sortBy: [SortDescriptor(\.occurredAt)])).map {
                 BackupFile.Sale(id: $0.id, occurredAt: $0.occurredAt, note: $0.note, customerId: $0.customerId,
-                                customerName: $0.customerName, kindRaw: $0.kindRaw, lines: $0.lines)
+                                customerName: $0.customerName, kindRaw: $0.kindRaw, lines: $0.lines,
+                                onCredit: $0.onCredit ? true : nil)
             },
             customers: try all(FetchDescriptor<Persistence.Customer>(predicate: #Predicate { $0.sellerId == sellerId },
                                                                      sortBy: [SortDescriptor(\.normalizedName)])).map {
@@ -301,6 +313,10 @@ public enum BackupService {
             orderDrafts: try all(FetchDescriptor<NaturaOrderDraft>(predicate: #Predicate { $0.sellerId == sellerId },
                                                                    sortBy: [SortDescriptor(\.cycle)])).map {
                 BackupFile.OrderDraft(cycle: $0.cycle, lines: $0.lines, pointsLimit: $0.pointsLimit)
+            },
+            customerPayments: try all(FetchDescriptor<CustomerPayment>(predicate: #Predicate { $0.sellerId == sellerId },
+                                                                       sortBy: [SortDescriptor(\.paidAt)])).map {
+                BackupFile.Payment(id: $0.id, customerId: $0.customerId, amountPesos: $0.amountPesos, paidAt: $0.paidAt, note: $0.note)
             }
         )
     }
@@ -378,6 +394,7 @@ public enum BackupService {
         try context.delete(model: Persistence.CustomerOrder.self)
         try context.delete(model: InventoryLotRecord.self)
         try context.delete(model: NaturaOrderDraft.self)
+        try context.delete(model: CustomerPayment.self)
         try context.save()
     }
 
@@ -447,6 +464,7 @@ public enum BackupService {
                                  customerId: item.customerId, customerName: item.customerName, lines: item.lines,
                                  syncState: .synced)
             sale.kindRaw = item.kindRaw
+            sale.onCredit = item.onCredit ?? false
             context.insert(sale)
         }
         for item in backup.customers {
@@ -487,6 +505,10 @@ public enum BackupService {
             line.receivedConfirmedAt = item.receivedConfirmedAt
             line.barcodes = item.barcodes
             context.insert(line)
+        }
+        for item in backup.customerPayments ?? [] {
+            context.insert(CustomerPayment(id: item.id, sellerId: sellerId, customerId: item.customerId,
+                                           amountPesos: item.amountPesos, paidAt: item.paidAt, note: item.note))
         }
         for item in backup.orderDrafts ?? [] {
             let draft = NaturaOrderDraft(sellerId: sellerId, cycle: item.cycle)
