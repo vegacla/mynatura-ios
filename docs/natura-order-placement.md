@@ -337,6 +337,9 @@ Opción futura (no en esta etapa): una página web pública por ciclo, de solo l
 
 ## 9. Plan por etapas
 
+> **Local primero (2026-11-27):** la app habla directo con Natura, sin backend. Donde este documento dice "backend", "tablas" o "endpoints de MyNatura", ahora es el iPhone (`Store` + SwiftData) y el paquete `Natura`.
+> **Estado:** etapas **1** (revista para abrir y compartir, WhatsApp, "Mi selección" en PDF) y **2** (borrador local con encargos, ofertas, reposición y barra de puntos) **hechas** (`local-first-migration.md` M8). Etapa 0 (capturar el checkout de GSP) y 3–6 pendientes. El índice de la revista por SKU no se hizo: el catálogo del ciclo de GSP ya trae productos, precios, puntos y ofertas.
+
 | # | Etapa | Entregable | Toca Natura |
 |---|---|---|---|
 | 0 | Captura | HAR o script de §4; tabla §5.2 con rutas y DTOs reales (en este documento, sin valores) | Pedido manual **cancelado** |

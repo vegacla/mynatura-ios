@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada (2026-11-26). **M1–M3 y M5–M7 implementadas** (sin probar en iPhone); **M4 descartada** (el Excel del pedido la reemplaza); M8 pendiente.
+> **Estado:** decisión tomada (2026-11-26). **M1–M3 y M5–M7 implementadas** (sin probar en iPhone); **M4 descartada** (el Excel del pedido la reemplaza); **M8 en curso** (etapas 1–2 de `natura-order-placement.md` hechas; enviar el pedido requiere capturar el checkout de GSP).
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 

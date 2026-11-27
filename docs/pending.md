@@ -83,7 +83,10 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 
 ## 2. Pedido a Natura (`natura-order-placement.md`)
 
-- **M8 en curso (2026-11-27):** hecho en `Core`: URL de la revista (`NaturaMagazine`) y reglas del borrador (`OrderDraftRules`: sugerencias desde encargos confirmados − stock, puntos estimados, tope, qué bajar primero, lista para compartir), con tests. Hecho en `Persistence`: modelo `NaturaOrderDraft` (también en el respaldo). **Falta:** acciones en `LocalStore` (crear borrador del ciclo, actualizar desde encargos, agregar ofertas o reposición, tope de puntos) y pantallas: Clientes › Revista (abrir y compartir el link oficial, "Mi selección" en PDF) y Recepción › Armar pedido del ciclo (barra de puntos y compartir la lista).
+- **M8, etapas 1 y 2 hechas en la app (2026-11-27), sin backend:**
+  - **Clientes › Revista:** abrir y compartir el link oficial del ciclo (con el código de consultora), PDF completo, envío por WhatsApp a cada cliente con teléfono y **"Mi selección del ciclo"** en PDF (foto, nombre, código, precio de venta y oferta);
+  - **Recepción › Armar pedido:** borrador por ciclo con encargos confirmados − stock (y quién los pidió), ofertas y reposición, barra de puntos con tope a mano (ámbar al 90 %, rojo al pasarse, qué bajar primero), compra estimada y **compartir la lista** para cargarla en GSP.
+  - **Falta:** etapa 3 en adelante (enviar al carro de GSP, regalos, cerrar), que requiere capturar el checkout; leer el **tope de puntos** de Natura (hoy a mano); **verificar en el iPhone** la URL de la revista con `id_consultora`, los enlaces `wa.me` y el PDF (fotos de GSP y tamaño).
 - **Voz:** "¿cuándo cierra el ciclo?" ya usa el ciclo vigente con fecha; nuevas "¿cuánto crédito tengo?" y "¿cuándo vence mi pago?".
 
 - **Captura de endpoints (la hace la consultora):** recorrido de §4.2 en minegocio con DevTools, guardando **Save all as HAR (sanitized)** fuera del repo, y **cancelar el pedido antes de cerrarlo**. De ahí salen rutas y DTOs para §5.2 (solo formas, sin valores). Incluye:
