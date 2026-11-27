@@ -96,6 +96,8 @@ public final class SellerSettings {
     public var currentCycleCode: Int?
     public var currentCycleStart: Date?
     public var currentCycleEnd: Date?
+    /// Último respaldo exportado (o restaurado): para el recordatorio semanal (M5).
+    public var lastBackupAt: Date?
 
     public init(sellerId: String, issueStrategy: IssueStrategy) {
         self.sellerId = sellerId

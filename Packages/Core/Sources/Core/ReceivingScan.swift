@@ -7,20 +7,6 @@ public enum ReceivingReviewStatus: String, Sendable, Codable {
     public var label: String { self == .draft ? "Borrador" : "Cerrado" }
 }
 
-public enum ReceiptOcrStatus: String, Sendable, Codable {
-    case pending
-    case succeeded
-    case failed
-
-    public var label: String {
-        switch self {
-        case .pending: "OCR pendiente"
-        case .succeeded: "OCR leído"
-        case .failed: "OCR falló"
-        }
-    }
-}
-
 extension ReceivingStatus {
     public var label: String {
         switch self {

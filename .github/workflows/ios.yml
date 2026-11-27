@@ -41,6 +41,10 @@ jobs:
         working-directory: Packages/Natura
         run: swift test
 
+      - name: swift test (Persistence, macOS)
+        working-directory: Packages/Persistence
+        run: swift test
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

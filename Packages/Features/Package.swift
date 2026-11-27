@@ -13,8 +13,9 @@ let package = Package(
         .package(path: "../Persistence"),
         .package(path: "../Sync"),
         .package(path: "../DesignSystem"),
+        .package(path: "../Natura"),
     ],
     targets: [
-        .target(name: "Features", dependencies: ["Core", "APIClient", "Persistence", "Sync", "DesignSystem"]),
+        .target(name: "Features", dependencies: ["Core", "APIClient", "Persistence", "Sync", "DesignSystem", "Natura"]),
     ]
 )

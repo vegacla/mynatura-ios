@@ -65,7 +65,7 @@ struct NaturaOrderDetailScreen: View {
                     .disabled(working)
                 } footer: {
                     if order.isClosed {
-                        Text("Pedido cerrado: recepción, OCR y precios quedan bloqueados.")
+                        Text("Pedido cerrado: recepción y precios quedan bloqueados.")
                     }
                 }
             }

@@ -45,8 +45,6 @@ public final class NaturaOrder {
 
     public var isClosed: Bool { reviewStatus == .closed }
 
-    public var ocrStatus: ReceiptOcrStatus? { ocrStatusRaw.flatMap(ReceiptOcrStatus.init(rawValue:)) }
-
     public var receivingStatus: ReceivingStatus {
         ReceivingStatus.derive(receivedUnits: receivedUnits, pendingUnits: pendingUnits)
     }

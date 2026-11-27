@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada (2026-11-26). **M1, M2, M3 y M4 implementadas** (sin probar en iPhone); M5–M8 pendientes.
+> **Estado:** decisión tomada (2026-11-26). **M1, M2, M3 y M5 implementadas** (sin probar en iPhone); **M4 descartada** (el Excel del pedido la reemplaza); M6–M8 pendientes.
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 
@@ -166,7 +166,7 @@ Por periodo y por producto, como el reporte de margen actual.
 | `natura-gsp-auth.ts` (recover-session, xAppToken) | `NaturaAuth` / `GspClient` | Verificado con `natura:probe-gsp-login` |
 | `natura-http-client.ts` (pedidos JSON, líneas HTML `#order-items-list`) | `MinegocioClient` | Mismo parseo; tests con HTML de ejemplo **sin datos personales** |
 | `natura-magazine-pricing.ts` (precios de la revista) | `MagazineClient` | Mismas heurísticas; tests en `Core` |
-| OCR de boleta (Tesseract + sharp) | Vision (`VNRecognizeTextRequest`) | Igual que la foto de producto; sin red |
+| OCR de boleta (Tesseract + sharp) | — | Se descarta (M4): la boleta trae lo mismo que el Excel del pedido, que se baja solo. El código queda en el repo `mynatura` por si se necesita |
 | `playwright-natura-client.ts` | — | Se elimina. Si Akamai bloquea, se informa y se reintenta más tarde |
 | Nuevo | `MinegocioClient.accounts` (`mis-cuentas`), `query_cycle`; `GspClient.consultantSection`, crédito, ofertas | Del catálogo del Asistente (U5–U6) |
 
@@ -235,8 +235,9 @@ Sin script de exportación.
 - **Prioridad de fuentes:**
   1. Excel del pedido (costo + sugerido; también para el historial);
   2. HTML de líneas (`/pedidos/items/…`, lo que usa hoy el backend), como respaldo del costo;
-  3. revista del ciclo, solo si sigue en línea;
-  4. OCR de la boleta impresa.
+  3. revista del ciclo, solo si sigue en línea.
+
+  El OCR de la boleta impresa se descartó: trae lo mismo que el Excel (ver M4).
 - **Ventas previas** ("Agregar inventario actual"): cada lote guarda el sugerido de su línea, y las unidades que salen con FIFO toman **ese** precio como **ingreso estimado**. Se muestran en un bloque aparte de Ganancias ("Ventas previas, estimadas al precio sugerido"), sin mezclarse con las ventas reales.
 - Los archivos descargados para análisis van en `docs/xlsx/` (en `.gitignore`: traen datos personales).
 
@@ -251,8 +252,8 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | M1 ✅ | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
 | M2 ✅ | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
 | M3 ✅ | Natura directo | Paquete `Natura`: login (minegocio + GSP) + import de **todos** los pedidos entregados (JSON + HTML) como lotes recibidos + catálogo del ciclo actual (`cardSection`, categorías) sin repetir + revista; "Agregar inventario actual" (diferencia = ventas previas, FIFO); sin productos manuales; sin leer el backend |
-| M4 ✅ | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
-| M5 | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
+| M4 ✖ | OCR local | **Descartada** (2026-11-27): la boleta trae lo mismo que el Excel del pedido, que la app baja sola al importar. Ver §8.3 |
+| M5 ✅ | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
 | M6 | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
 | M7 | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; se archiva el repo `mynatura`; se actualizan `CLAUDE.md` y `ios-app-design.md` |
 | M8 | Pedido Natura (después) | `natura-order-placement.md` con el flujo GSP, directo desde la app |
@@ -307,21 +308,28 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 - **Sin productos manuales:** se quitaron el "+" de Productos, "Crear producto" en la foto y la creación rápida en el pedido de cliente.
 - **Por verificar en el iPhone:** el login directo (Akamai desde la red móvil), el parámetro de la ruta del Excel, el número de categorías y páginas del ciclo y los tiempos de la primera importación.
 
-## 8.3 Implementación M4
+## 8.3 M4 descartada (2026-11-27)
 
-- **Core (`ReceiptOcr`, tests en Linux):** espejo de `natura-order-receipt-ocr.ts` y `apply-order-receipt-ocr.ts`:
-  - agrupa las palabras de Vision en filas por su centro vertical (Vision entrega las columnas de la tabla por separado);
-  - **formato vigente de la boleta = el del Excel del pedido:** `Cant.` · `Código` · `Descripción` · `Marca` · `Precio revista (uni.)` · `Precio revista (total)` · `Precio CB (total)` · `Ganancia (total)`. Se excluye la `TASA DE SERVICIO`;
-  - con el encabezado, separa columnas por posición; sin encabezado, lee cada fila como texto (cantidad, código, descripción y hasta 4 montos al final, con o sin punto de miles);
-  - también entiende el formato que leía el backend (`Precio Normal` · `Precio Ciclo` · `Precio Venta`);
-  - una fila por SKU (la de mayor confianza);
-  - precio de venta propuesto = `Precio revista (uni.)` (en el formato anterior, las reglas del backend) y cantidad propuesta (tope: lo pedido). El `Precio CB` se lee pero no se aplica: el costo ya viene del Excel;
-  - como la boleta trae lo mismo que el Excel, el OCR es **respaldo** (cuarta fuente de §7.1): sirve cuando el Excel no llegó o para revisar un pedido impreso;
-  - cruce con las líneas del pedido por SKU; OCR "leído" si alguna línea coincide, si no "falló".
-- **Features (`ReceiptReader`):** `VNRecognizeTextRequest` (preciso, sin corrección de idioma) con la caja de cada palabra. Si con la orientación de la foto no salen filas, prueba las otras tres y se queda con la mejor (como el backend con 0/±90/180°).
-- **Sync (`applyReceiptReading`):** guarda las propuestas en las líneas (reemplaza las anteriores), el estado y la fecha del OCR. "Aceptar propuestas" las aplica y las limpia.
-- **Pantalla:** la tarjeta "Comprobante" funciona **sin conexión**; la foto no sale del iPhone ni se guarda. La fila muestra la propuesta de cantidad y de precio cuando difieren de lo guardado.
-- **Por verificar en el iPhone:** que Vision lea el encabezado en una sola fila y los montos con punto de miles, y el tiempo de lectura cuando hay que probar otras orientaciones.
+- La boleta impresa trae lo mismo que el **Excel del pedido** (cantidad, código, precio revista, precio CB), y el Excel se baja solo en cada importación, para todos los pedidos.
+- Lo que proponía el OCR ya está cubierto: el **precio sugerido** y el **costo** vienen del Excel (de respaldo, el HTML de líneas da el costo). La **cantidad** de la boleta es lo facturado, no lo que llegó: la recepción se cuenta o escanea igual.
+- Se llegó a implementar con Vision y se quitó: tarjeta "Comprobante", badges de OCR y "Aceptar propuestas". Los campos de OCR del modelo (`ocrStatusRaw`, `proposed…`) quedan sin uso hasta M7, para no forzar una migración.
+- Si alguna vez hiciera falta, el OCR con Tesseract sigue en el repo `mynatura` (`natura-order-receipt-ocr.ts`).
+
+## 8.4 Implementación M5
+
+- **Respaldo** (`Persistence/Backup.swift`, tests en macOS en CI):
+  - JSON versionado (`format: "mynatura-backup"`, `version: 1`, fechas ISO 8601) con ajustes, productos, stock, lotes, kardex, ventas y obsequios, clientes, pedidos de clientes, pedidos y líneas Natura, y motivos de precio;
+  - **no incluye** credenciales, la sesión de la app, la cola de sincronización ni el carro en curso;
+  - **exportar** (Ajustes › Respaldo): archivo `MyNatura-respaldo-AAAA-MM-DD.json` en la hoja de compartir (Archivos, Drive, correo). Al completarse, se marca la fecha del respaldo;
+  - **importar**: se elige el archivo, se ve la vista previa con conteos y se confirma. Reemplaza todos los datos locales con el `sellerId` de la sesión actual, que se conserva. Si algo falla a mitad de camino, vuelve a dejar lo que había;
+  - un respaldo de una versión más nueva de la app se rechaza con un mensaje claro.
+- **Recordatorio** (`Core.BackupReminder`, tests en Linux): "Último respaldo: hoy / ayer / hace N días / nunca". Pasados 7 días (o nunca, si hay datos), aparece un aviso en Ajustes y un badge en la pestaña.
+- **Credenciales de Natura** (`Natura.NaturaCredentialStore`):
+  - el código de consultora se guarda sin biometría, para prellenar el campo;
+  - la contraseña se guarda con `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` + `SecAccessControl([.biometryCurrentSet, .or, .devicePasscode])`. No va al respaldo de iCloud y se invalida si cambian las huellas;
+  - en Ajustes › Natura: interruptor "Guardar en este iPhone (Touch ID)", que se guarda solo si el login funcionó; "Olvidar contraseña". Con contraseña guardada, "Actualizar desde Natura" pide Touch ID;
+  - si Natura rechaza la contraseña guardada, se borra y se pide de nuevo. Cerrar sesión también la borra.
+- **Por verificar en el iPhone:** la hoja de compartir con Drive y correo, restaurar un respaldo real, y el Touch ID (incluido el caso sin código del iPhone, que impide guardar la contraseña).
 
 ## 9. Riesgos
 

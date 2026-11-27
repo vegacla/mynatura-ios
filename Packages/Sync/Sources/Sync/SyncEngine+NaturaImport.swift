@@ -111,6 +111,7 @@ extension SyncEngine {
             return .success(summary)
         } catch let error as NaturaError {
             save()
+            if case .credentials = error { return .failure(ActionError(error.message, isCredentialError: true)) }
             return .failure(ActionError(error.message))
         } catch {
             save()

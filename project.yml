@@ -43,8 +43,9 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        NSCameraUsageDescription: "MyNatura usa la cámara para escanear códigos de barras, fotografiar boletas de pedidos y reconocer productos."
-        NSPhotoLibraryUsageDescription: "MyNatura necesita acceso a tus fotos para elegir la boleta de un pedido."
+        NSCameraUsageDescription: "MyNatura usa la cámara para escanear códigos de barras y reconocer productos."
+        NSPhotoLibraryUsageDescription: "MyNatura necesita acceso a tus fotos para elegir la foto de un producto."
+        NSFaceIDUsageDescription: "MyNatura usa Face ID para proteger tu contraseña de Natura guardada en este iPhone."
         NSMicrophoneUsageDescription: "MyNatura usa el micrófono para que puedas dictar pedidos, recepciones y consultas."
         NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar pedidos y responder consultas. El audio no se guarda."
         NSLocalNetworkUsageDescription: "MyNatura se conecta al servidor de desarrollo en tu red local."

@@ -1,12 +1,11 @@
 import Core
 import DesignSystem
 import Persistence
-import PhotosUI
 import SwiftData
 import SwiftUI
 import Sync
 
-/// Recibir por línea (§4.6): comprobante OCR, asistencia de faltantes y edición por línea.
+/// Recibir por línea (§4.6): asistencia de faltantes y edición por línea.
 /// Solo consulta los productos y el stock de los SKU del pedido (no el catálogo completo).
 struct ReceiveByLineScreen: View {
     @Query private var orders: [NaturaOrder]
@@ -85,7 +84,6 @@ private struct ReceiveByLineList: View {
                 if order.isClosed {
                     AlertBanner("Pedido cerrado. Reábrelo para editar.", tone: .info, systemImage: "lock.fill")
                 } else {
-                    ReceiptCard(order: order, lines: lines, sellerId: sellerId)
                     ShortageCard(order: order, lines: lines, sellerId: sellerId)
                 }
                 ForEach(lines) { line in
@@ -147,9 +145,6 @@ struct ReceivingLineRow: View {
                 LabeledContent("Precio venta") {
                     MoneyField("Precio venta", money: $salePrice).frame(maxWidth: 140)
                 }
-                if let proposal = ocrProposalText {
-                    Text(proposal).font(.caption).foregroundStyle(StatusTone.info.color)
-                }
                 HStack {
                     let shortage = ReceivingRules.shortage(ordered: line.quantity, confirmed: quantity)
                     Text(shortage > 0 ? "Faltante: \(shortage)" : "Completo")
@@ -168,14 +163,6 @@ struct ReceivingLineRow: View {
         .onChange(of: line.receivedQuantity) { _, _ in reset() }
     }
 
-    /// Propuesta de la boleta que difiere de lo guardado (cantidad y/o precio de venta).
-    private var ocrProposalText: String? {
-        var parts: [String] = []
-        if let proposed = line.proposedReceivedQuantity, proposed != line.receivedQuantity { parts.append("\(proposed) u.") }
-        if let proposed = line.proposedSuggestedPesos, proposed != line.suggestedPesos { parts.append(Money(pesos: proposed).formatted) }
-        return parts.isEmpty ? nil : "Propuesta OCR: " + parts.joined(separator: " · ")
-    }
-
     private func reset() {
         quantity = line.receivedQuantity
         salePrice = Money(pesos: line.suggestedPesos ?? 0)
@@ -189,94 +176,6 @@ struct ReceivingLineRow: View {
         } else {
             errorMessage = nil
             Haptics.success()
-        }
-    }
-}
-
-/// Tarjeta "Comprobante": foto → OCR en el iPhone (Vision) → propuestas. Funciona sin conexión.
-private struct ReceiptCard: View {
-    @Environment(SyncEngine.self) private var sync
-    let order: NaturaOrder
-    let lines: [NaturaOrderLine]
-    let sellerId: String
-    @State private var photoItem: PhotosPickerItem?
-    @State private var showingCamera = false
-    @State private var reading = false
-    @State private var resultMessage: (text: String, isError: Bool)?
-
-    private var proposals: Int {
-        lines.filter { $0.proposedReceivedQuantity != nil || $0.proposedSuggestedPesos != nil }.count
-    }
-
-    var body: some View {
-        Section {
-            HStack {
-                Text("Comprobante").font(.headline)
-                Spacer()
-                if let ocr = order.ocrStatus { OcrBadge(status: ocr) }
-            }
-            HStack {
-                if DocumentCameraView.isSupported {
-                    Button { showingCamera = true } label: { Label("Fotografiar", systemImage: "doc.viewfinder") }
-                        .buttonStyle(.bordered)
-                }
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    Label("Elegir foto", systemImage: "photo")
-                }
-                .buttonStyle(.bordered)
-                if reading { ProgressView() }
-            }
-            .disabled(reading)
-            if reading {
-                Text("Leyendo la boleta…").font(.caption).foregroundStyle(.secondary)
-            }
-            if let resultMessage {
-                AlertBanner(resultMessage.text, tone: resultMessage.isError ? .danger : .success)
-            }
-            if proposals > 0 {
-                Button("Aceptar propuestas (\(proposals) línea(s))") {
-                    let count = sync.acceptOcrProposals(sellerId: sellerId, orderId: order.id)
-                    resultMessage = ("Aplicadas \(count) propuesta(s).", false)
-                    Haptics.success()
-                }
-            }
-        } footer: {
-            Text("La foto se lee en el iPhone y no se guarda. Propone cantidades y precios de venta; tú decides cuáles aceptar.")
-        }
-        .onChange(of: photoItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                    await read(image)
-                }
-                photoItem = nil
-            }
-        }
-        .fullScreenCover(isPresented: $showingCamera) {
-            DocumentCameraView(onImage: { image in
-                showingCamera = false
-                Task { await read(image) }
-            }, onCancel: { showingCamera = false })
-            .ignoresSafeArea()
-        }
-    }
-
-    private func read(_ image: UIImage) async {
-        reading = true
-        defer { reading = false }
-        do {
-            let rows = try await ReceiptReader.read(image)
-            switch sync.applyReceiptReading(sellerId: sellerId, orderId: order.id, rows: rows) {
-            case .success(let message):
-                resultMessage = (message, false)
-                Haptics.success()
-            case .failure(let error):
-                resultMessage = (error.message, true)
-                Haptics.error()
-            }
-        } catch {
-            resultMessage = ("No se pudo leer la foto: \(error.localizedDescription)", true)
-            Haptics.error()
         }
     }
 }

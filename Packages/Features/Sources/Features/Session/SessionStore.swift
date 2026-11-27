@@ -1,6 +1,7 @@
 import APIClient
 import Core
 import Foundation
+import Natura
 import Observation
 import Persistence
 
@@ -128,6 +129,7 @@ public final class SessionStore {
             _ = try? await api.send(.logout)
         }
         api.clearSessionCredential()
+        NaturaCredentialStore.delete()
         try? repository.deleteAll()
         phase = .signedOut
     }

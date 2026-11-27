@@ -70,7 +70,6 @@ struct NaturaOrderRow: View {
                 if let delivered = order.deliveredAt {
                     Text("· Entrega \(delivered.formatted(date: .abbreviated, time: .omitted))")
                 }
-                if let ocr = order.ocrStatus { OcrBadge(status: ocr) }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -86,18 +85,6 @@ struct ReviewBadge: View {
     var body: some View {
         StatusBadge(status.label, tone: status == .closed ? .success : .neutral,
                     systemImage: status == .closed ? "lock.fill" : nil)
-    }
-}
-
-struct OcrBadge: View {
-    let status: ReceiptOcrStatus
-
-    var body: some View {
-        switch status {
-        case .pending: StatusBadge(status.label, tone: .warning)
-        case .succeeded: StatusBadge(status.label, tone: .success)
-        case .failed: StatusBadge(status.label, tone: .danger)
-        }
     }
 }
 
