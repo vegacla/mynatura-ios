@@ -245,7 +245,7 @@ struct NaturaImportSection: View {
                 progress = nil
             }
             if usingSaved {
-                do {
+                do throws(NaturaCredentialStore.StoreError) {
                     secret = try await NaturaCredentialStore.loadPassword()
                 } catch {
                     result = (error.message, true)
@@ -260,7 +260,7 @@ struct NaturaImportSection: View {
             case .success(let message):
                 result = (message, false)
                 if shouldSave {
-                    do {
+                    do throws(NaturaCredentialStore.StoreError) {
                         try NaturaCredentialStore.save(customerCode: code, password: secret)
                         loadSavedCredentials()
                     } catch {

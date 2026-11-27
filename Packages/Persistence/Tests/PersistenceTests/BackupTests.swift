@@ -7,8 +7,13 @@ import Testing
 @Suite("Respaldo JSON (M5)")
 @MainActor
 struct BackupTests {
-    private func makeContext() throws -> ModelContext {
-        try PersistenceController.makeContainer(inMemory: true).mainContext
+    // El contenedor debe seguir vivo mientras se usa su contexto.
+    private let sourceContainer: ModelContainer
+    private let targetContainer: ModelContainer
+
+    init() throws {
+        sourceContainer = try PersistenceController.makeContainer(inMemory: true)
+        targetContainer = try PersistenceController.makeContainer(inMemory: true)
     }
 
     private func seed(_ context: ModelContext, sellerId: String) throws {
@@ -48,7 +53,7 @@ struct BackupTests {
     }
 
     @Test func roundTripReplacesDataAndKeepsSession() throws {
-        let source = try makeContext()
+        let source = sourceContainer.mainContext
         try seed(source, sellerId: "old-seller")
         let backup = try BackupService.makeBackup(context: source, sellerId: "old-seller", appVersion: "1.0.0 (1)")
         let data = try BackupService.encode(backup)
@@ -57,7 +62,7 @@ struct BackupTests {
         #expect(decoded.counts == BackupCounts(products: 1, lots: 1, sales: 1, customers: 1, customerOrders: 0,
                                                naturaOrders: 1, naturaLines: 1, events: 0))
 
-        let target = try makeContext()
+        let target = targetContainer.mainContext
         target.insert(SessionSummary(sellerId: "new-seller", customerCode: "123", displayName: "Consultora"))
         target.insert(CatalogProduct(id: "other", sellerId: "new-seller", naturaSku: "1", name: "Se borra", source: .manual,
                                      isSellable: true, lastPurchasePesos: 0, lastSuggestedSalePesos: nil, barcodes: []))
