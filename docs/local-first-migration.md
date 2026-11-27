@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada y plan propuesto (2026-11-26). Sin implementar.
+> **Estado:** decisión tomada (2026-11-26). **M1 implementada** (`Packages/Core/Sources/Core/Costing.swift`, tests en `CostingTests`); M2–M8 pendientes.
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 
@@ -203,7 +203,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 
 | # | Etapa | Entregable |
 |---|---|---|
-| M1 | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
+| M1 ✅ | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
 | M2 | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
 | M3 | Natura directo | Paquete `Natura`: login minegocio + import de pedidos entregados (JSON + HTML) + revista; reimportar todo en el iPhone |
 | M4 | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
