@@ -11,6 +11,7 @@ public enum VoiceLaunch: String, Identifiable, Hashable, Sendable {
     case dictateSale
     case newCustomerOrder
     case productPhoto
+    case assistant
 
     public var id: String { rawValue }
 }
@@ -35,7 +36,7 @@ public final class AppRouter {
         case .ask: break
         case .dictateSale: tab = .sell
         case .newCustomerOrder: tab = .customers
-        case .productPhoto: break
+        case .productPhoto, .assistant: break
         }
         pendingVoice = voice
     }
@@ -107,6 +108,8 @@ public struct VoiceLaunchSheet: View {
             }
         case .productPhoto:
             ProductPhotoSheet(sellerId: sellerId)
+        case .assistant:
+            AssistantSheet(sellerId: sellerId)
         }
     }
 }

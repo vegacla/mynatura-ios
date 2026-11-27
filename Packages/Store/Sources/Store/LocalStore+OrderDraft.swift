@@ -51,6 +51,20 @@ extension LocalStore {
         save()
     }
 
+    /// "¿Qué tengo que pedir?": encargos confirmados del ciclo − stock, sin tocar el borrador.
+    public func cycleSuggestions(sellerId: String, cycle: Int) -> [OrderDraftLine] {
+        let confirmed = CustomerOrderStatus.confirmed.rawValue
+        let orders = fetchAll(FetchDescriptor<CustomerOrder>(predicate: #Predicate {
+            $0.sellerId == sellerId && $0.cycle == cycle && $0.statusRaw == confirmed
+        }))
+        let demand = orders.flatMap { order in
+            (order.lines ?? []).map {
+                DraftDemand(sku: $0.naturaSku, name: $0.productName, customer: order.customerDisplayName, quantity: $0.quantity)
+            }
+        }
+        return OrderDraftRules.suggestions(demand: demand, stock: stockBySku(sellerId: sellerId))
+    }
+
     /// Pedidos de clientes del ciclo en borrador: no suman hasta confirmarlos.
     public func unconfirmedCustomerOrders(sellerId: String, cycle: Int) -> Int {
         let draftStatus = CustomerOrderStatus.draft.rawValue

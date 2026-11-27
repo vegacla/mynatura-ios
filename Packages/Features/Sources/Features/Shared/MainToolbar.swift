@@ -1,10 +1,13 @@
 import SwiftUI
 import UIKit
 
-/// Toolbar común: botón de consulta por voz (la pastilla de sync se quitó en M7).
+/// Toolbar común: Asistente y "Preguntar" por voz (la pastilla de sync se quitó en M7).
 extension View {
     func mainToolbar(sellerId: String) -> some View {
         toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                AssistantToolbarButton(sellerId: sellerId)
+            }
             ToolbarItem(placement: .topBarLeading) {
                 VoiceQueryToolbarButton(sellerId: sellerId)
             }

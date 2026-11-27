@@ -61,8 +61,30 @@ struct ProductPhotoIntent: AppIntent {
     }
 }
 
+struct AssistantIntent: AppIntent {
+    static var title: LocalizedStringResource { "Asistente de MyNatura" }
+    static var description: IntentDescription {
+        IntentDescription("Abre el Asistente: escanea o nombra un producto o cliente y elige qué hacer.")
+    }
+    static var openAppWhenRun: Bool { true }
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        AppRouter.shared.launch(.assistant)
+        return .result()
+    }
+}
+
 struct MyNaturaShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(
+            intent: AssistantIntent(),
+            phrases: [
+                "Asistente de \(.applicationName)",
+                "Abrir asistente de \(.applicationName)",
+            ],
+            shortTitle: "Asistente",
+            systemImageName: "sparkles")
         AppShortcut(
             intent: AskMyNaturaIntent(),
             phrases: [
