@@ -314,9 +314,12 @@ extension SyncEngine {
             let quantity = min(line.proposedReceivedQuantity ?? line.receivedQuantity, line.quantity)
             if confirmReceivingLine(sellerId: sellerId, lineId: line.id, quantity: quantity,
                                     suggestedPesos: line.proposedSuggestedPesos ?? line.suggestedPesos) == nil {
+                line.proposedReceivedQuantity = nil
+                line.proposedSuggestedPesos = nil
                 count += 1
             }
         }
+        save()
         return count
     }
 
@@ -334,9 +337,39 @@ extension SyncEngine {
     /// Los pedidos Natura vienen de la importación directa: no hay detalle que descargar del backend.
     public func refreshNaturaOrder(sellerId: String, orderId: String) async {}
 
-    /// El OCR de la boleta pasa al iPhone en M4; mientras tanto no se usa el del backend.
-    public func uploadReceipt(sellerId: String, orderId: String, jpeg: Data) async -> Result<String, ActionError> {
-        .failure(ActionError("La lectura de la boleta se está pasando al iPhone. Mientras tanto, revisa las líneas a mano."))
+    /// Boleta leída en el iPhone (M4): cruza las filas con las líneas del pedido y deja propuestas de cantidad y
+    /// precio de venta, que la consultora acepta después. Reemplaza las propuestas anteriores del pedido.
+    public func applyReceiptReading(sellerId: String, orderId: String, rows: [ReceiptOcrRow]) -> Result<String, ActionError> {
+        guard let order = fetchAll(FetchDescriptor<NaturaOrder>(predicate: #Predicate { $0.id == orderId })).first else {
+            return .failure(ActionError("Pedido no encontrado."))
+        }
+        guard !order.isClosed else { return .failure(ActionError("El pedido está cerrado. Reábrelo para leer la boleta.")) }
+        let orderLines = lines(orderId: orderId)
+        guard !orderLines.isEmpty else { return .failure(ActionError("El pedido no tiene líneas para asociar la boleta.")) }
+
+        let match = ReceiptOcr.match(rows: rows, lines: orderLines.map {
+            ReceiptOcrOrderLine(id: $0.id, naturaSku: $0.naturaSku, quantity: $0.quantity)
+        })
+        let proposalByLine = Dictionary(match.proposals.map { ($0.lineId, $0) }, uniquingKeysWith: { first, _ in first })
+        for line in orderLines {
+            let proposal = proposalByLine[line.id]
+            line.proposedReceivedQuantity = proposal?.receivedQuantity
+            line.proposedSuggestedPesos = proposal?.suggestedPesos
+        }
+        order.ocrStatusRaw = match.status.rawValue
+        order.ocrProcessedAt = .now
+        save()
+
+        guard !match.proposals.isEmpty else {
+            return .failure(ActionError(rows.isEmpty
+                ? "No se reconocieron líneas en la foto. Prueba con más luz, la boleta completa y sin sombras."
+                : "Se leyeron \(rows.count) fila(s), pero ninguna coincide con los códigos de este pedido."))
+        }
+        var message = "Boleta leída: \(match.proposals.count) de \(orderLines.count) línea(s) con propuesta."
+        if !match.unmatchedSkus.isEmpty {
+            message += " Códigos que no están en el pedido: \(match.unmatchedSkus.prefix(5).joined(separator: ", "))."
+        }
+        return .success(message)
     }
 
     // MARK: - Natura (directo, M3)

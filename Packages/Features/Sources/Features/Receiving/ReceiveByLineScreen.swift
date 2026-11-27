@@ -147,8 +147,8 @@ struct ReceivingLineRow: View {
                 LabeledContent("Precio venta") {
                     MoneyField("Precio venta", money: $salePrice).frame(maxWidth: 140)
                 }
-                if let proposed = line.proposedSuggestedPesos, proposed != line.suggestedPesos {
-                    Text("Propuesta OCR: \(Money(pesos: proposed).formatted)").font(.caption).foregroundStyle(StatusTone.info.color)
+                if let proposal = ocrProposalText {
+                    Text(proposal).font(.caption).foregroundStyle(StatusTone.info.color)
                 }
                 HStack {
                     let shortage = ReceivingRules.shortage(ordered: line.quantity, confirmed: quantity)
@@ -168,6 +168,14 @@ struct ReceivingLineRow: View {
         .onChange(of: line.receivedQuantity) { _, _ in reset() }
     }
 
+    /// Propuesta de la boleta que difiere de lo guardado (cantidad y/o precio de venta).
+    private var ocrProposalText: String? {
+        var parts: [String] = []
+        if let proposed = line.proposedReceivedQuantity, proposed != line.receivedQuantity { parts.append("\(proposed) u.") }
+        if let proposed = line.proposedSuggestedPesos, proposed != line.suggestedPesos { parts.append(Money(pesos: proposed).formatted) }
+        return parts.isEmpty ? nil : "Propuesta OCR: " + parts.joined(separator: " · ")
+    }
+
     private func reset() {
         quantity = line.receivedQuantity
         salePrice = Money(pesos: line.suggestedPesos ?? 0)
@@ -185,7 +193,7 @@ struct ReceivingLineRow: View {
     }
 }
 
-/// Tarjeta "Comprobante": foto → OCR → propuestas (solo online).
+/// Tarjeta "Comprobante": foto → OCR en el iPhone (Vision) → propuestas. Funciona sin conexión.
 private struct ReceiptCard: View {
     @Environment(SyncEngine.self) private var sync
     let order: NaturaOrder
@@ -193,7 +201,7 @@ private struct ReceiptCard: View {
     let sellerId: String
     @State private var photoItem: PhotosPickerItem?
     @State private var showingCamera = false
-    @State private var uploading = false
+    @State private var reading = false
     @State private var resultMessage: (text: String, isError: Bool)?
 
     private var proposals: Int {
@@ -207,21 +215,20 @@ private struct ReceiptCard: View {
                 Spacer()
                 if let ocr = order.ocrStatus { OcrBadge(status: ocr) }
             }
-            if sync.connectivity.isOnline {
-                HStack {
-                    if DocumentCameraView.isSupported {
-                        Button { showingCamera = true } label: { Label("Fotografiar", systemImage: "doc.viewfinder") }
-                            .buttonStyle(.bordered)
-                    }
-                    PhotosPicker(selection: $photoItem, matching: .images) {
-                        Label("Elegir foto", systemImage: "photo")
-                    }
-                    .buttonStyle(.bordered)
-                    if uploading { ProgressView() }
+            HStack {
+                if DocumentCameraView.isSupported {
+                    Button { showingCamera = true } label: { Label("Fotografiar", systemImage: "doc.viewfinder") }
+                        .buttonStyle(.bordered)
                 }
-                .disabled(uploading)
-            } else {
-                OnlineOnlyNote(text: "El OCR de la boleta requiere conexión.")
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    Label("Elegir foto", systemImage: "photo")
+                }
+                .buttonStyle(.bordered)
+                if reading { ProgressView() }
+            }
+            .disabled(reading)
+            if reading {
+                Text("Leyendo la boleta…").font(.caption).foregroundStyle(.secondary)
             }
             if let resultMessage {
                 AlertBanner(resultMessage.text, tone: resultMessage.isError ? .danger : .success)
@@ -234,13 +241,13 @@ private struct ReceiptCard: View {
                 }
             }
         } footer: {
-            Text("La foto se envía al servidor para leer cantidades y precios. Tú decides qué propuestas aceptar.")
+            Text("La foto se lee en el iPhone y no se guarda. Propone cantidades y precios de venta; tú decides cuáles aceptar.")
         }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                    await upload(image)
+                    await read(image)
                 }
                 photoItem = nil
             }
@@ -248,20 +255,29 @@ private struct ReceiptCard: View {
         .fullScreenCover(isPresented: $showingCamera) {
             DocumentCameraView(onImage: { image in
                 showingCamera = false
-                Task { await upload(image) }
+                Task { await read(image) }
             }, onCancel: { showingCamera = false })
             .ignoresSafeArea()
         }
     }
 
-    private func upload(_ image: UIImage) async {
-        guard let jpeg = ImageEncoding.jpeg(from: image) else { return }
-        uploading = true
-        switch await sync.uploadReceipt(sellerId: sellerId, orderId: order.id, jpeg: jpeg) {
-        case .success(let message): resultMessage = (message, false)
-        case .failure(let error): resultMessage = (error.message, true)
+    private func read(_ image: UIImage) async {
+        reading = true
+        defer { reading = false }
+        do {
+            let rows = try await ReceiptReader.read(image)
+            switch sync.applyReceiptReading(sellerId: sellerId, orderId: order.id, rows: rows) {
+            case .success(let message):
+                resultMessage = (message, false)
+                Haptics.success()
+            case .failure(let error):
+                resultMessage = (error.message, true)
+                Haptics.error()
+            }
+        } catch {
+            resultMessage = ("No se pudo leer la foto: \(error.localizedDescription)", true)
+            Haptics.error()
         }
-        uploading = false
     }
 }
 

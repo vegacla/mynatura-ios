@@ -50,7 +50,7 @@ extension DocumentCameraView.Coordinator: @preconcurrency VNDocumentCameraViewCo
 }
 
 enum ImageEncoding {
-    /// JPEG reducido (lado mayor ≤ 2000 px) para el OCR del backend (límite 12 MB).
+    /// JPEG reducido (lado mayor ≤ `maxDimension`) antes de pasarlo a Vision.
     static func jpeg(from image: UIImage, maxDimension: CGFloat = 2000) -> Data? {
         let size = image.size
         let scale = min(1, maxDimension / max(size.width, size.height))

@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada (2026-11-26). **M1, M2 y M3 implementadas** (sin probar en iPhone); M4–M8 pendientes.
+> **Estado:** decisión tomada (2026-11-26). **M1, M2, M3 y M4 implementadas** (sin probar en iPhone); M5–M8 pendientes.
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 
@@ -251,7 +251,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | M1 ✅ | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
 | M2 ✅ | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
 | M3 ✅ | Natura directo | Paquete `Natura`: login (minegocio + GSP) + import de **todos** los pedidos entregados (JSON + HTML) como lotes recibidos + catálogo del ciclo actual (`cardSection`, categorías) sin repetir + revista; "Agregar inventario actual" (diferencia = ventas previas, FIFO); sin productos manuales; sin leer el backend |
-| M4 | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
+| M4 ✅ | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
 | M5 | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
 | M6 | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
 | M7 | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; se archiva el repo `mynatura`; se actualizan `CLAUDE.md` y `ios-app-design.md` |
@@ -306,6 +306,19 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 - **Sin backend:** el pull no lee nada, el saldo inicial de M2 quedó desactivado y el OCR del servidor muestra un aviso hasta M4. La sesión de la app (login) sigue hasta M7.
 - **Sin productos manuales:** se quitaron el "+" de Productos, "Crear producto" en la foto y la creación rápida en el pedido de cliente.
 - **Por verificar en el iPhone:** el login directo (Akamai desde la red móvil), el parámetro de la ruta del Excel, el número de categorías y páginas del ciclo y los tiempos de la primera importación.
+
+## 8.3 Implementación M4
+
+- **Core (`ReceiptOcr`, tests en Linux):** espejo de `natura-order-receipt-ocr.ts` y `apply-order-receipt-ocr.ts`:
+  - agrupa las palabras de Vision en filas por su centro vertical (Vision entrega las columnas de la tabla por separado);
+  - con el encabezado (`Código`, `Descripción`, `Cant.`, `Precio Normal`, `Precio Ciclo`, `Precio Venta`) separa columnas por posición; sin encabezado, lee cada fila como texto (SKU, descripción, cantidad, montos en orden);
+  - una fila por SKU (la de mayor confianza);
+  - precio de venta propuesto y cantidad propuesta (tope: lo pedido) con las mismas reglas del backend;
+  - cruce con las líneas del pedido por SKU; OCR "leído" si alguna línea coincide, si no "falló".
+- **Features (`ReceiptReader`):** `VNRecognizeTextRequest` (preciso, sin corrección de idioma) con la caja de cada palabra. Si con la orientación de la foto no salen filas, prueba las otras tres y se queda con la mejor (como el backend con 0/±90/180°).
+- **Sync (`applyReceiptReading`):** guarda las propuestas en las líneas (reemplaza las anteriores), el estado y la fecha del OCR. "Aceptar propuestas" las aplica y las limpia.
+- **Pantalla:** la tarjeta "Comprobante" funciona **sin conexión**; la foto no sale del iPhone ni se guarda. La fila muestra la propuesta de cantidad y de precio cuando difieren de lo guardado.
+- **Por verificar en el iPhone:** que Vision lea el encabezado en una sola fila y los montos con punto de miles, y el tiempo de lectura cuando hay que probar otras orientaciones.
 
 ## 9. Riesgos
 
