@@ -19,9 +19,7 @@ El repo `mynatura` queda tal cual: no se modifica, no se archiva y no se compara
   - `SellerSettings.issueStrategyRaw` y `localInventoryAdoptedAt`.
 - **Core:** quitar junto con lo anterior `MutationType`, `MutationStatus`, `SyncQueue`, `LocalID.references/rewrite` y `Dataset`/`DatasetSyncStatus`, con sus tests (`SalesAndSyncTests`).
 - **`SessionSummary`** hace de perfil local: renombrarlo (p. ej. `LocalProfile`) en la misma migración.
-- **Documentos con referencias al backend:**
-  - `ios-app-design.md`: las secciones de backend y sync están marcadas como obsoletas, no reescritas (§2, §4.1, §6, §7, §8, §9, §11, §13). Falta reducirlo a lo vigente;
-  - `unified-assistant-proposal.md` (§6, "todo vía backend") y `natura-order-placement.md`: pasar a "directo desde la app".
+- **Documentos:** `ios-app-design.md` ya está reducido a lo vigente (las secciones de sync, `APIClient` y backend quedaron como una nota) y el Asistente pasó a "directo desde la app". Quedan menciones históricas al backend en `natura-order-placement.md` §5 (diseño original), cubiertas por la nota de §9.
 - **CI:** cuando termine la regla temporal de CI mínimo, volver a activar los tests (Core en Linux; Natura y Persistence en macOS). Varios tests escritos en M5–M6 no han corrido nunca.
 - **Verificar en el iPhone:**
   - instalar sobre la versión anterior: los datos se conservan (mismo `sellerId`), la cola antigua se descarta y no quedan íconos de "sin sincronizar";
@@ -47,14 +45,9 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 - ~~Respaldo con `FoundationModels`~~: **descartado por ahora**. El iPhone de uso es un **SE 3.ª generación** (A15, sin Apple Intelligence), así que el modelo local de Apple no está disponible. Si se quiere interpretación libre, la única vía es un modelo en la nube vía backend: opcional, solo con conexión y enviando el texto dictado (decisión pendiente).
 
 ### Sin etapa asignada
-- **Navegación por voz** ("ir a recepción", "abre el pedido de María"): está en §3, caso 7, del documento de voz, pero no en el plan.
-- **Ajustes → Voz** (§6 del documento de voz): reunir en una sección los interruptores que hoy están repartidos en las hojas:
-  - permitir servidores de Apple;
-  - leer respuestas en voz alta;
-  - modo continuo en Recepción.
-  
-  Sumar ahí el registro **local** y opcional de frases no entendidas.
-- **Fecha de cierre del ciclo** en "¿Cuándo cierra el ciclo?": hoy se responde con el último ciclo registrado. El ciclo vigente con fechas ya se guarda al importar (M3/M6, `SellerSettings.currentCycleEnd`): falta usarlo en la respuesta de voz.
+- ~~Navegación por voz~~: **hecha** ("ir a recepción", "abre la revista", "muéstrame las ofertas", "abre el pedido de María", "abre el pedido del ciclo").
+- ~~Ajustes → Voz~~: **hecho** (servidores de Apple, respuestas habladas, recepción sin manos al abrir, registro local opcional de frases no entendidas y ejemplos).
+- ~~Fecha de cierre del ciclo~~: **hecha** con el ciclo vigente guardado. También "¿cuánto crédito tengo?" y "¿cuándo vence mi pago?".
 
 ### Límites conocidos (a revisar con frases reales)
 - "Kaiak completo y Ekos completo" dicho de corrido queda como un solo producto. Con una coma o una pausa se separa.

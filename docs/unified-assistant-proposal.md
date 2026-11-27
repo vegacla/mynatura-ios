@@ -197,7 +197,7 @@ Columna **Red**: 🔌 requiere conexión; vacío = funciona offline.
 
 ## 6. Datos que faltan (de las capturas `docs/har/`)
 
-Solo formas; sin valores. Todo se consume **vía backend**: la app nunca habla con Natura directo. El backend inicia sesión con la contraseña en memoria, como el import.
+Solo formas; sin valores. **Desde M7 (local primero) la app habla con Natura directo**, sin backend: login, cuenta, crédito, ciclo y ofertas ya están en el paquete `Natura` (M3 y M6 de `local-first-migration.md`).
 
 ### 6.1 minegocio — cuentas y pedidos
 - `GET /pedidos/ajax/mis-cuentas?order=…&state=…` → `[{ number, orderingNumber, isOpen, isOverdue, issueDate, dueDate, originalValue, currentBalance, overdueDays, orderStatus }]`. Es la fuente de **vencimientos de pago**.
@@ -247,6 +247,8 @@ Ya documentada en `natura-order-placement.md` §2.3 (páginas, PDF, link con `id
 
 ### 6.5 Endpoints nuevos del backend (propuestos)
 
+> **Obsoleto desde M7:** no hay backend. Cuenta, crédito, ciclo y ofertas se leen directo desde la app (M6); la revista se arma con su URL pública (M8).
+
 | Endpoint MyNatura | Fuente Natura | Para |
 |---|---|---|
 | `POST /api/natura/account` (credenciales en el body) | `mis-cuentas` + `profileGetRefreshToken` | vencimientos, saldo, atrasos, crédito, bloqueo |
@@ -289,8 +291,8 @@ Core (solo Foundation, tests en Linux)
 | U2 | Hoja unificada | `AssistantSheet` reemplaza "Preguntar": modos Escanear/Foto/Voz/Texto, tarjeta, 4 principales + "Más…"; acciones ✅ ya existentes | offline |
 | U3 | Acciones locales nuevas | 🆕 de §4: último pedido del cliente, quién lo pidió, historial y margen hablados, repetir venta, ¿qué tengo que pedir?, navegación, ayuda | offline |
 | U4 | Compartir | Enviar revista y producto por WhatsApp (`ShareLink` / `wa.me`), llamar | al enviar |
-| U5 | Cuenta y ciclo (backend) | Endpoints §6.5 de cuenta y ciclo; tarjetas de vencimientos, crédito, bloqueo y ciclo con fechas; respuestas de voz | 🔌 |
-| U6 | Ofertas y revista (backend) | Ofertas y puntos por producto, búsqueda en revista | 🔌 |
+| U5 | Cuenta y ciclo | ✅ Hecho sin backend (M6 + voz): Cuenta Natura (vencimientos, crédito, bloqueo, ciclo con fechas) y respuestas de voz de ciclo, crédito y pagos | 🔌 |
+| U6 | Ofertas y revista | ✅ Ofertas del ciclo y revista para compartir (M6, M8). Falta: búsqueda dentro de la revista | 🔌 |
 | U7 | Pedido Natura | Integra `natura-order-placement.md` con el flujo GSP de §6.3; confirmar el pedido sigue siendo solo un botón y requiere capturar el checkout | 🔌 ⛔ |
 
 ---
@@ -301,8 +303,8 @@ Core (solo Foundation, tests en Linux)
 |---|---|
 | Demasiadas acciones en 4,7" | 4 principales por contexto + "Más…" agrupado; la ayuda dice qué se puede decir |
 | Ambigüedad de entidad ("Juan", "Humor") | Candidatos en la tarjeta; la entidad activa evita repetir |
-| Acciones online sin red o sin credenciales | Marcadas 🔌; caché con fecha; contraseña Natura solo en memoria por sesión |
-| Cambios en GSP/minegocio | Todo pasa por el backend; errores visibles en la tarjeta |
+| Acciones online sin red o sin credenciales | Marcadas 🔌; caché con fecha; contraseña Natura opcional en el Keychain con Touch ID |
+| Cambios en GSP/minegocio | Parseo aislado en el paquete `Natura` con tests; errores visibles en la tarjeta |
 | Errores de voz que ejecutan algo indebido | La voz solo elige o prepara; ejecutar es un toque; dinero y Natura nunca por voz |
 | HAR con datos personales | `docs/har/` en `.gitignore`; a los documentos solo pasan formas |
 

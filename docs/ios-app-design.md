@@ -37,69 +37,15 @@ App de trabajo diario para **una persona consultora Natura** (una cuenta = un ne
 
 ## 2. Decisión de arquitectura
 
-> **Obsoleto desde M7 (2026-11-27):** la decisión vigente es la app local primero, sin backend (`local-first-migration.md` §1 y §3).
+**Vigente (desde M7, 2026-11-27): app local primero, sin backend propio.** Detalle y motivos en `local-first-migration.md` §1–§3.
 
+- **SwiftData es la fuente de verdad**: productos, lotes, ventas y obsequios, clientes, pedidos de clientes, pedidos Natura, borradores y caché de Natura.
+- **Natura directo** (paquete `Natura`): login por HTTP (minegocio + GSP), pedidos entregados con su Excel, catálogo y ofertas del ciclo, cuenta y crédito. Ver `natura-integration.md`.
+- **Reglas en `Core`** (costo por lotes, ganancia, precios, recepción, voz), con tests.
+- **Respaldo JSON** y contraseña de Natura en el Keychain con Touch ID (M5).
+- El backend anterior (Fastify + PostgreSQL) y la PWA quedan como referencia en el repo `mynatura`, sin cambios.
 
-### Recomendación: **cliente nativo SwiftUI + mismo backend**
-
-Se conserva el backend Fastify/PostgreSQL tal cual (con pequeños ajustes, §9) y se reemplaza la PWA por una app nativa.
-
-Motivos:
-- El backend ya resuelve lo difícil y sensible: login Natura con **Playwright**, scraping de pedidos (`minegocio.natura.cl`), precios sugeridos desde la **revista digital** (`cl.natura.digital-catalogue.com`), **OCR** con Tesseract + sharp, lotes FIFO/LIFO, RLS por cuenta de vendedor.
-- Los requisitos exigen que la integración Natura sea *backend‑owned*. Moverla al teléfono rompe esa regla.
-- Los contratos DTO ya están tipados (`backend/src/modules/*/contracts`) y se mapean 1:1 a `Codable`.
-
-Lo que **sí mejora** al ser nativo:
-- Escáner de códigos de barras con **VisionKit `DataScannerViewController`** (mucho más rápido y fiable que la cámara web de `ProductsView`).
-- Foto de boleta con cámara nativa + recorte/enderezado con **VisionKit `VNDocumentCameraViewController`** antes de enviarla al OCR del backend (mejor tasa de lectura).
-- Sincronización en segundo plano con **`BGTaskScheduler`** y conectividad real con **`NWPathMonitor`**.
-- Hápticos, swipe actions, `searchable`. (Widgets descartados mientras se use Apple ID gratis: cada extensión consume un App ID, ver §13.)
-
-> Alternativa descartada por ahora: app 100 % local (SwiftData + CloudKit, login Natura en `WKWebView`, OCR con Vision).
-> Es viable técnicamente, pero contradice "backend‑owned security", duplica la lógica de lotes y pierde la consolidación central. Queda como evolución posible.
-
-### Stack iOS
-
-| Área | Elección |
-|---|---|
-| Lenguaje | Swift 6 (strict concurrency) |
-| UI | SwiftUI, iOS 17+ (recomendado 18+) |
-| Estado | Observation (`@Observable`) — reemplaza Pinia |
-| Persistencia local | **SwiftData** — reemplaza IndexedDB (`mynatura-offline`) |
-| Red | `URLSession` + `async/await` + `Codable` — reemplaza `http-client.ts` + TanStack Query |
-| Sesión | Cookie de sesión en `HTTPCookieStorage` (o token en Keychain si se agrega Bearer, §9) |
-| Conectividad | `NWPathMonitor` |
-| Sync en background | `BGTaskScheduler` (`BGAppRefreshTask`) + sync al volver a foreground |
-| Escáner | VisionKit `DataScannerViewController` (EAN‑13/EAN‑8/Code128 + texto para SKU) |
-| Cámara boleta | `VNDocumentCameraViewController` / `PhotosPicker` |
-| Íconos | SF Symbols (reemplazan lucide) |
-| Tests | Swift Testing / XCTest para dominio y sync (`Core` corre en Windows); XCUITest opcional en CI manual |
-| Modularización | Swift Packages locales (abajo) |
-
-### Estructura del proyecto
-
-```text
-./
-  App/                         # @main, TabView raíz, inyección de dependencias
-  Packages/
-    Core/                      # Dominio puro: Money, normalizadores, reglas de precio, stock, ciclos
-    APIClient/                 # Endpoints + DTOs Codable (espejo de contracts/*.ts)
-    Persistence/               # Modelos SwiftData + repositorios locales
-    Sync/                      # MutationQueue, SyncEngine, pull/push, ConnectivityMonitor
-    DesignSystem/              # Componentes: StatusBadge, MiniStat, ProgressBar, AlertBanner, MoneyField…
-    Features/
-      Session/                 # Login, logout, restauración
-      Sales/                   # Venta (POS), Carro, Historial de ventas
-      Catalog/                 # Productos, EAN, conciliación
-      Receiving/               # Pedidos Natura, recepción por línea / por código, OCR
-      Customers/               # Clientes
-      CustomerOrders/          # Pedidos de clientes
-      History/                 # Kardex
-      Settings/                # Estado offline, FIFO/LIFO, importación Natura
-```
-
-Regla de dependencias: `Features → Sync/Persistence/APIClient → Core`. `Core` no importa nada (testeable sin simulador).
-Esto replica la separación *domain / application / infrastructure / http* del backend y la de *api / stores / views* del frontend.
+Lo que aporta ser nativo: escáner VisionKit, Vision para fotos de producto, voz con Speech, hápticos y Atajos de Siri.
 
 ---
 
@@ -124,11 +70,7 @@ El **indicador de conectividad/sync** (En línea · Pendiente sync · Sin conexi
 
 ### 4.1 Login
 
-> **Obsoleto desde M7 (2026-11-27):** no hay login a la app. Abre directo con un perfil local; "Borrar datos del iPhone" en Ajustes reemplaza al cierre de sesión.
-
-- Código cliente + contraseña de **la app** (no de Natura). `POST /api/auth/login`.
-- Restaura sesión al abrir (`GET /api/auth/me`); si no hay red, usa el `SessionSummary` cacheado en SwiftData para entrar en modo offline.
-- Logout: limpia carro, cookies y datos locales de esa cuenta.
+No hay login a la app (M7). Abre directo con un perfil local (`AppProfile`). Las credenciales de Natura se piden solo al traer datos de Natura (Ajustes › Natura) y se pueden guardar con Touch ID.
 
 ### 4.2 Vender (POS)
 - Lista de productos **vendibles con stock operativo > 0**, búsqueda por nombre, SKU o EAN (`.searchable`).
@@ -175,11 +117,14 @@ El **indicador de conectividad/sync** (En línea · Pendiente sync · Sin conexi
 - Todo funciona 100 % offline (IDs locales UUID, creados antes de sincronizar).
 
 ### 4.8 Ajustes
-- Sesión actual (nombre · código).
-- **Estado offline**: conectividad, pendientes, fallidos, última sincronización por dataset, botón "Sincronizar ahora", lista de mutaciones fallidas con reintentar/descartar.
-- **Salida de inventario**: FIFO ("sale primero el lote más antiguo") / LIFO.
-- **Sincronización Natura**: código cliente + contraseña Natura (`SecureField`, **no se guarda**), "Cargar pedidos entregados", spinner con "Conectando con Natura…".
-- **Historial de importaciones**: fecha, pedidos, líneas.
+
+- **Consultora:** código Natura (se recuerda al importar).
+- **Método de costeo:** FIFO, LIFO o Mayor precio (`local-first-migration.md` §4.4).
+- **Natura:** código y contraseña (opcional: guardarla con Touch ID), "Traer mis pedidos" / "Actualizar desde Natura", última importación, ciclo vigente, **Cuenta Natura** (crédito y pagos), **Ofertas del ciclo** y "Agregar inventario actual" (una vez).
+- **Respaldo:** exportar e importar JSON, con recordatorio semanal.
+- **Voz:** servidores de Apple, respuestas habladas, recepción sin manos, frases no entendidas (locales) y ejemplos.
+- **Historial y reportes:** ventas y Ganancias.
+- **Borrar datos del iPhone**, versión y **Diagnóstico** (red, último error, log).
 
 ---
 
@@ -241,138 +186,40 @@ func validate(line: CartLine, suggested: Money?, reason: PricingReason?) throws(
 
 ## 6. Persistencia local (SwiftData)
 
-Equivalencia con los stores de IndexedDB (`frontend/src/shared/offline/db.ts`):
+Modelos vigentes (paquete `Persistence`, todos filtrados por `sellerId`; archivo con `completeUntilFirstUserAuthentication`):
 
-| IndexedDB store | Modelo SwiftData |
+| Modelo | Qué guarda |
 |---|---|
-| `session_summary` | `SessionSummary` (sellerId, customerCode, displayName) |
-| `seller_settings` | `SellerSettings` (issueStrategy) |
-| `seller_catalog` | `CatalogProduct` (+ `[String] barcodes`) |
-| `inventory_stock_summary` | `StockItem` |
-| `natura_orders` / `natura_order_lines` | `NaturaOrder` ↔ `NaturaOrderLine` (relación) |
-| `customers` | `Customer` |
-| `customer_orders` | `CustomerOrder` ↔ `CustomerOrderLine` |
-| `sync_metadata` | `DatasetSyncState` (dataset, lastSyncedAt, status, error) |
-| `pending_mutations` | `PendingMutation` |
-| (carro persistido) | `CartDraft` / `CartDraftLine` |
-| — nuevo — | `LocalSale` (ventas creadas offline, visibles en historial antes de sincronizar) |
+| `SessionSummary` | Perfil local: `sellerId` y código de consultora |
+| `SellerSettings` | Método de costeo, ciclo vigente con fechas, última importación, inventario inicial, último respaldo |
+| `CatalogProduct` · `StockItem` | Catálogo (pedidos + ciclo de GSP, con precios, puntos y oferta del ciclo) y stock = suma de lotes |
+| `InventoryLotRecord` · `InventoryEventRecord` | Lotes con costo y origen; kardex |
+| `LocalSale` | Ventas, obsequios y ventas previas, con el costo de cada línea |
+| `NaturaOrder` · `NaturaOrderLine` | Pedidos Natura importados y su recepción |
+| `Customer` · `CustomerOrder` | Clientes y pedidos por ciclo |
+| `NaturaOrderDraft` | Borrador del pedido Natura del ciclo (M8) |
+| `NaturaAccountSnapshot` | Caché de cuenta, crédito y pagos de Natura |
+| `CartDraft` · `CartDraftLine` · `PricingReasonRecord` | Carro en curso y motivos de precio |
 
-```swift
-@Model final class CatalogProduct {
-    @Attribute(.unique) var id: String        // sellerProductId
-    var sellerId: String
-    var naturaSku: String
-    var name: String
-    var source: ProductSource                 // .manual / .catalog / .orderImport
-    var isSellable: Bool
-    var lastPurchasePesos: Int
-    var lastSuggestedSalePesos: Int?
-    var barcodes: [String]
-    var syncState: EntitySyncState            // .synced / .pending / .failed
-}
-
-@Model final class PendingMutation {
-    @Attribute(.unique) var id: UUID           // = clientMutationId (idempotencia)
-    var type: MutationType
-    var sellerId: String
-    var entityKey: String
-    var payload: Data                         // JSON del DTO de entrada
-    var status: MutationStatus                // .pending / .syncing / .failed
-    var retryCount: Int
-    var createdAt: Date
-    var lastErrorMessage: String?
-}
-```
-Todo se filtra por `sellerId` (multi‑sesión segura en el mismo dispositivo). Archivo SwiftData con `FileProtectionType.completeUntilFirstUserAuthentication`.
+Sin uso desde M7 (se quitan con una migración versionada, `pending.md` §0): `PendingMutation`, `DatasetSyncState`, los campos `syncState` y los de OCR.
 
 ---
 
 ## 7. Motor de sincronización (paquete `Sync`)
 
-> **Obsoleto desde M7 (2026-11-27):** no hay sincronización. El paquete `Sync` pasó a ser `Store` (`LocalStore`), que escribe directo en SwiftData; se quitaron la cola, el push/pull y la pastilla de sync. `PendingMutation` y `DatasetSyncState` siguen en el esquema sin uso, para no forzar una migración.
-
-
-### 7.1 Tipos de mutación (mismos que la PWA)
-`sale.create`, `inventory.reconciliation.create`, `receiving.line.confirm`, `catalog.barcode.add`, `customer.create`, `customer.update`, `customer-order.create`, `customer-order.update`.
-
-### 7.2 Escritura (siempre local primero)
-1. Aplicar el cambio al modelo SwiftData (UI se actualiza al instante).
-2. Insertar `PendingMutation` en la **misma transacción** (`modelContext.save()`).
-3. Marcar la entidad `.pending`.
-4. Si hay red → `SyncEngine.pushNow()`.
-
-### 7.3 Push — orden determinista
-`customer → customer-order → barcode → receiving → reconciliation → sale` (inventario al final), luego FIFO por `createdAt` dentro de cada grupo.
-Reintento con backoff exponencial (1s, 2s, 4s… tope 5 min). Errores **4xx de regla de negocio** ⇒ `.failed` (no reintenta solo, requiere revisión); **red/5xx** ⇒ sigue `.pending`.
-Tras cada lote: `POST /api/sync/events` para auditoría (igual que hoy).
-
-### 7.4 Pull — refresco de datasets
-`catalog`, `stock`, `natura orders (+lines)`, `customers`, `customer orders`, `settings`, `pricing reasons`.
-Se hace: al iniciar sesión, al volver a foreground, tras un push exitoso, con pull‑to‑refresh y en `BGAppRefreshTask`.
-Regla de merge: **no sobrescribir entidades con mutaciones pendientes** (se re‑aplican los cambios locales encima del snapshot remoto).
-
-### 7.5 Conflictos (por operación, según `offline-strategy.md`)
-| Operación | Política |
-|---|---|
-| Venta | Si el backend rechaza (stock insuficiente, lotes) → `failed`, pantalla "Revisar venta" (editar cantidades / descartar). Nunca se pisa. |
-| Conciliación | Nunca se fusiona; fallida → reintentar o reemplazar con nuevo conteo. |
-| Recepción | Last‑write‑wins si el pedido sigue en borrador; si ya está cerrado → `failed` + aviso "reabre el pedido". |
-| EAN | EAN ya usado por otro producto → `failed` con resolución manual. |
-| Clientes / pedidos | LWW en campos de perfil; reglas de negocio rechazadas → `failed` con reintento manual. |
-
-### 7.6 Mapeo de IDs locales
-Clientes y pedidos creados offline usan UUID local. Al sincronizar, si el backend devuelve otro `id`, el engine reescribe referencias en mutaciones pendientes posteriores (p. ej. un `customer-order.create` que apunta a un `customer.create` local). Recomendado: que el backend **acepte el UUID del cliente** como `id` para evitar el remapeo (§9).
+> **Obsoleto desde M7 (2026-11-27):** no hay sincronización. `LocalStore` (paquete `Store`) escribe directo en SwiftData e importa desde Natura. La versión anterior de esta sección está en el historial de git.
 
 ---
 
 ## 8. Capa de red (paquete `APIClient`)
 
-> **Obsoleto desde M7 (2026-11-27):** el paquete `APIClient` se eliminó. La red es solo con Natura (paquete `Natura`, `docs/natura-integration.md`).
-
-
-```swift
-protocol APIClient: Sendable {
-    func send<R: Decodable>(_ endpoint: Endpoint<R>) async throws(APIError) -> R
-}
-
-enum APIError: Error {
-    case offline, unauthorized, validation(message: String), conflict(message: String), server(status: Int), decoding
-}
-```
-Endpoints a cubrir (verificados contra `backend/src/modules/*/http/*-routes.ts`, prefijo `/api`):
-
-| Módulo | Endpoints |
-|---|---|
-| auth | `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` |
-| seller / settings | `GET /seller/profile`, `GET /settings`, `PUT /settings` |
-| catalog | `GET /catalog/products`, `GET /catalog/master-products/lookup`, `POST /catalog/products/quick`, `POST /catalog/products/:sellerProductId/barcodes` |
-| inventory | `GET /inventory/stock-summary`, `GET /inventory/receipts`, `GET /inventory/activity`, `POST /inventory/reconciliations` |
-| sales | `GET /sales`, `POST /sales`, `GET /sales/pricing-reasons` |
-| natura | `POST /natura/import-runs/delivered-orders`, `GET /natura/import-runs`, `GET /natura/orders`, `GET /natura/orders/:orderId`, `PATCH /natura/orders/:orderId/lines/:lineId`, `PATCH …/line-prices`, `PATCH …/receiving`, `POST …/receiving-scan`, `PATCH …/receiving-review`, `POST …/receipt-ocr` (multipart) |
-| customers | `GET /customers?q=`, `POST /customers`, `GET /customers/:customerId`, `PATCH /customers/:customerId` |
-| customer-orders | `GET /customer-orders`, `POST /customer-orders`, `GET /customer-orders/:orderId`, `PATCH /customer-orders/:orderId` |
-| sync | `GET /sync/status`, `POST /sync/events` |
-
-Ideal: generar el cliente desde el OpenAPI que ya expone `@fastify/swagger` con **swift-openapi-generator**.
-
-DTOs: `struct`s `Codable, Sendable` espejo de `contracts/*.ts`, con `JSONDecoder.dateDecodingStrategy = .iso8601`.
+> **Obsoleto desde M7 (2026-11-27):** el paquete `APIClient` se eliminó. La red es solo con Natura: `natura-integration.md` y el paquete `Natura` (`NaturaClient`).
 
 ---
 
 ## 9. Ajustes necesarios en el backend
 
-> **Obsoleto desde M7 (2026-11-27):** el backend se retira; el repo `mynatura` queda como referencia.
-
-
-Hallazgos del análisis que conviene resolver antes (o en paralelo) para que la app nativa sincronice sin fricción:
-
-1. **Idempotencia de ventas**: `createSale` lanza error *"La venta ya fue registrada previamente"* si el `clientMutationId` existe. Si la respuesta se pierde en la red y el teléfono reintenta, la venta quedaría como *fallida* aunque esté guardada. → Devolver **200 con la venta existente**.
-2. **Clave de idempotencia en el resto de mutaciones** (conciliación, recepción, EAN, clientes, pedidos): aceptar `clientMutationId` / header `Idempotency-Key`. Hoy solo ventas la tienen.
-3. **IDs generados por el cliente** para `customers` y `customer_orders` (aceptar `id` UUID opcional) → elimina el remapeo de IDs.
-4. **Autenticación móvil**: la sesión es por cookie. Funciona con `HTTPCookieStorage`, pero se recomienda emitir también un token opaco revocable (Bearer) guardado en **Keychain** con `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
-5. **Import asíncrono**: `POST delivered-orders` es síncrono (Playwright + scraping + revista puede tardar mucho). En móvil conviene `202 + runId` y polling de `GET /natura/imports/:runId` para no depender de una conexión abierta minutos.
-6. **Validación de precio**: el backend valida contra `product.lastSuggestedSaleUnitPriceCents` pero guarda el sugerido del lote. Unificar criterio para que la validación offline en `Core` coincida 100 %.
-7. **Pull incremental** (opcional): `?updatedSince=` en catálogo, clientes y pedidos para no bajar todo en cada sync.
+> **Obsoleto desde M7 (2026-11-27):** no hay backend propio.
 
 ---
 
@@ -421,8 +268,8 @@ Las correcciones de backend del §9 (1–3) deben estar antes del slice 4.
 | 8 · Clientes | ✅ Implementada: clientes (ficha compartida, búsqueda), pedidos por ciclo con autocompletado de cliente (seleccionado / nuevo), ciclo AAAACC (`CycleCode`), estado, creación rápida SKU + nombre (mutación propia `catalog.product.quick`), todo offline con IDs locales. |
 | 9 · Pulido | ✅ Implementada: "Revisar venta" (editar cantidades y reenviar con el mismo `clientMutationId`, o descartar devolviendo stock), `BGAppRefreshTask` (`cl.mynatura.app.refresh`), Diagnóstico con log `OSLogStore` compartible y cola de mutaciones, etiquetas de accesibilidad. |
 | 10 · Siguiente | ✅ Implementada: convertir pedido de cliente en venta (carga el carro y lo marca Cumplido al registrar), historial de compras por cliente, reporte de margen por periodo y producto. |
-| Validación en iPhone | ⏳ Pendiente: ninguna etapa se ha probado aún en el dispositivo (solo CI: tests de `Core`/`APIClient` en Linux + IPA). |
-| Backend §9 | ✅ (2026‑11‑24, repo `mynatura`, rama local `feat/ios-idempotency` sin push): §9.1 una venta con `clientMutationId` repetido devuelve la venta existente (también si dos envíos chocan en la restricción única); §9.2 cabecera `Idempotency-Key` + tabla `client_mutations` (RLS) en conciliaciones, clientes, pedidos de clientes, EAN, creación rápida y recepción de línea — la app envía el id de la mutación. Verificado con Postgres temporal + HTTP. §9.3 descartado: lo cubre el remapeo de IDs (§7.6). §9.5 mitigado en la app con timeout de 10 min para importar y 3 min para OCR. Pendiente: crear rol/base en el PostgreSQL de Windows y aplicar migraciones (`pnpm --dir backend db:migrate`); el backend ya no usa Docker (rama `chore/native-dev-pnpm`). |
+| Local primero (M1–M8) | Desde 2026-11-26 el plan sigue en `local-first-migration.md` §8 (M1–M3 y M5–M7 hechas, M4 descartada, M8 en curso). Las etapas 1–9 de arriba describen la versión con backend: su comportamiento de sync, login y OCR ya no aplica. |
+| Validación en iPhone | ⏳ Pendiente: ninguna etapa se ha probado aún en el dispositivo. |
 
 ---
 
@@ -430,11 +277,9 @@ Las correcciones de backend del §9 (1–3) deben estar antes del slice 4.
 
 | Riesgo | Control |
 |---|---|
-| Natura cambia su web (scraping HTML `#order-items-list`, revista digital) | Sigue aislado en backend; la app no se entera. Mantener los errores de import visibles en Ajustes. |
-| Divergencia entre validación offline y backend | Reglas en `Core` con tests espejo de los casos del backend; backend sigue siendo autoridad. |
-| Ventas duplicadas por reintentos | `clientMutationId` = id de `PendingMutation` + backend idempotente (§9.1). |
-| Pérdida de datos locales | SwiftData con protección de archivo; nunca borrar `PendingMutation` hasta confirmación 2xx. |
-| Credenciales Natura | Solo en memoria durante la llamada de import; nunca persistidas en el dispositivo. |
+| Natura cambia su web o API | Parseo aislado en `Core` (Natura) y `NaturaClient`, con tests; errores visibles en Ajustes › Natura. |
+| Pérdida de datos locales | Respaldo JSON con recordatorio, respaldo de iCloud del iPhone, mismo Bundle ID al reinstalar. |
+| Credenciales Natura | Solo en el Keychain de este iPhone con Touch ID, si la consultora lo pide; nunca en el respaldo ni en logs. |
 
 ---
 
@@ -568,11 +413,6 @@ No se necesita ningún certificado ni secreto en GitHub: Sideloadly firma localm
 ### 13.5 Conectar el iPhone al backend de desarrollo
 
 > **Obsoleto desde M7 (2026-11-27):** ya no hay backend al que conectarse.
-
-
-- **Opción simple (misma Wi‑Fi):** backend nativo en el PC (`pnpm --dir backend dev`, PostgreSQL de Windows; ver README del repo `mynatura`), la app apunta a `http://<IP-LAN-del-PC>:<puerto>`. Requiere en `Info.plist`: `NSAppTransportSecurity › NSAllowsLocalNetworking = YES` y `NSLocalNetworkUsageDescription`; abrir el puerto en el firewall de Windows y configurar CORS/cookies del backend para ese origen.
-- **Opción túnel (fuera de casa):** `cloudflared tunnel` o similar → URL HTTPS pública temporal; sin excepciones de ATS.
-- La URL del backend se elige en la pantalla **Diagnóstico** (Dev / Túnel / Producción), guardada en `UserDefaults`.
 
 ### 13.6 Preparación única
 
