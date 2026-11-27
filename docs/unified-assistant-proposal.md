@@ -1,6 +1,6 @@
 # Propuesta — Asistente unificado: cámara + voz → menú de acciones contextual
 
-> **Estado:** propuesta, sin implementar (2026-11-26).
+> **Estado (2026-11-27):** U1–U4 implementadas (sin probar en iPhone), U5–U6 hechas con M6/M8; U7 bloqueada (checkout de GSP). **Decisión:** el Asistente **convive** con las hojas actuales (dictado de pedido, recepción, carro, foto) y con "Preguntar": es un botón más (✨) en la toolbar y un Atajo de Siri.
 > Reúne en **una sola interfaz** lo que hoy está repartido: dictado por voz (`voice-interaction-proposal.md`), foto y escaneo de producto (`product-photo-proposal.md`), consultas y Atajos. Agrega las acciones que existen en Natura pero aún no en la app (vencimientos de pago, crédito, ciclo actual, ofertas, revista, carro de pedido).
 > Considera el equipo de uso: iPhone SE 3.ª gen., pantalla de 4,7", sin Apple Intelligence.
 > Se apoya en las capturas de `docs/har/`. Esa carpeta **no se versiona** (`.gitignore`): aquí solo hay rutas y nombres de campos, nunca valores.
@@ -287,10 +287,10 @@ Core (solo Foundation, tests en Linux)
 
 | # | Etapa | Entregable | Red |
 |---|---|---|---|
-| U1 | Núcleo | `AssistantEntity`, `AssistantActions` (registro de §4 con disponibilidad), `AssistantResolver` y gramática `.assistant` sobre lo existente; tests | — |
-| U2 | Hoja unificada | `AssistantSheet` reemplaza "Preguntar": modos Escanear/Foto/Voz/Texto, tarjeta, 4 principales + "Más…"; acciones ✅ ya existentes | offline |
-| U3 | Acciones locales nuevas | 🆕 de §4: último pedido del cliente, quién lo pidió, historial y margen hablados, repetir venta, ¿qué tengo que pedir?, navegación, ayuda | offline |
-| U4 | Compartir | Enviar revista y producto por WhatsApp (`ShareLink` / `wa.me`), llamar | al enviar |
+| U1 | Núcleo | ✅ `Core/Assistant`: `AssistantEntity`, registro `AssistantActions` (disponibilidad por contexto y frases), `AssistantResolver` (EAN, código, nombre de producto o cliente, ciclo, cuenta, revista) y cruce de frases con acciones; tests | — |
+| U2 | Hoja unificada | ✅ `AssistantSheet`: Escanear / Voz / Texto (se recuerda), tarjeta, 4 acciones + "Más…", respuestas en texto y voz, entidad activa para "¿y cuánto queda?". Convive con "Preguntar" (no lo reemplaza). Foto de producto sigue en su hoja | offline |
+| U3 | Acciones locales nuevas | ✅ ¿quién lo encargó?, costo y ganancia, ventas del mes del producto, ¿cuánto me ha comprado?, último pedido del cliente, ¿qué tengo que pedir?, recibir +1, agregar al pedido Natura, navegación y ayuda. Falta: repetir la última venta | offline |
+| U4 | Compartir | ✅ Enviar revista por WhatsApp (`wa.me` con el link oficial), WhatsApp, llamar (`tel:`) y compartir producto | al enviar |
 | U5 | Cuenta y ciclo | ✅ Hecho sin backend (M6 + voz): Cuenta Natura (vencimientos, crédito, bloqueo, ciclo con fechas) y respuestas de voz de ciclo, crédito y pagos | 🔌 |
 | U6 | Ofertas y revista | ✅ Ofertas del ciclo y revista para compartir (M6, M8). Falta: búsqueda dentro de la revista | 🔌 |
 | U7 | Pedido Natura | Integra `natura-order-placement.md` con el flujo GSP de §6.3; confirmar el pedido sigue siendo solo un botón y requiere capturar el checkout | 🔌 ⛔ |

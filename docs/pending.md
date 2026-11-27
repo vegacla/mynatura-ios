@@ -27,6 +27,12 @@ El repo `mynatura` queda tal cual: no se modifica, no se archiva y no se compara
   - el código de consultora aparece en Ajustes después de importar;
   - "Borrar datos del iPhone" deja la app como recién instalada y borra la contraseña guardada.
 
+## 0.1 Asistente (`unified-assistant-proposal.md`)
+
+Hecho (2026-11-27): U1–U4 (núcleo, hoja ✨ con Escanear / Voz / Texto, acciones locales nuevas, compartir). Convive con las hojas actuales.
+- **Falta:** "repite la última venta" (cargar el carro); modo **Foto** dentro del Asistente (hoy la foto sigue en su propia hoja); recordatorio de cobro (requiere decidir si se registran deudas de clientes).
+- **Verificar en el iPhone:** el escáner dentro de una hoja a media altura (tamaño y que no se reactive con el mismo código), cambiar de modo sin perder lo reconocido, abrir WhatsApp y llamar, y que el Atajo "Asistente de MyNatura" aparezca.
+
 ## 1. Voz (`voice-interaction-proposal.md`)
 
 Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo continuo · V4 consultas con respuesta hablada · V5 carro de venta · V6 vocabulario propio · V7 Atajos de Siri.
