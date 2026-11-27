@@ -50,6 +50,8 @@ public enum VoiceCommand: Equatable, Sendable {
     case physicalCount(Int)
     /// Consulta desde cualquier pantalla: "¿cuánto me queda de Kaiak?".
     case query(VoiceQuery)
+    /// "Ir a recepción", "abre la revista", "abre el pedido de María".
+    case navigate(VoiceDestination)
     case undo
     case done
     /// Trozo que no se entendió; se muestra con "?" para corregirlo a mano.

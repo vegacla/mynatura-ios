@@ -12,6 +12,7 @@ struct ReceivingVoiceSheet: View {
     @Environment(LocalStore.self) private var store
     @Environment(\.modelContext) private var context
     @AppStorage("voice.allowServerRecognition") private var allowServer = false
+    @AppStorage("voice.receivingContinuous") private var startContinuous = false
     @State private var speech = SpeechCaptureService()
     @State private var items: [VoiceProposalItem] = []
     @State private var nextId = 0
@@ -115,7 +116,10 @@ struct ReceivingVoiceSheet: View {
                 if let utterance { commit(utterance.text) }
             }
             .onDisappear { speech.cancel() }
-            .task { await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context) }
+            .task {
+                await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context)
+                if startContinuous, !speech.isContinuous { speech.startContinuous() }
+            }
         }
     }
 

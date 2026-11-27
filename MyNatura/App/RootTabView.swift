@@ -51,6 +51,9 @@ struct RootTabView: View {
             store.finishLocalMigrationIfNeeded(sellerId: sellerId)
         }
         .onChange(of: router.pendingVoice) { _, _ in consumePendingVoice() }
+        .sheet(item: $router.pendingScreen) { screen in
+            AppScreenSheet(screen: screen, sellerId: sellerId)
+        }
         .sheet(item: $voiceLaunch) { launch in
             VoiceLaunchSheet(launch: launch, sellerId: sellerId)
                 .presentationDetents([.newCustomerOrder, .productPhoto].contains(launch) ? [.large] : [.medium, .large])

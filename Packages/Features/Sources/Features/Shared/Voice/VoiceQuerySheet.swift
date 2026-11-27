@@ -10,6 +10,8 @@ import SwiftUI
 struct VoiceQuerySheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
+    @Environment(AppRouter.self) private var router
+    @AppStorage("voice.logUnrecognized") private var logUnrecognized = false
     @AppStorage("voice.allowServerRecognition") private var allowServer = false
     @AppStorage("voice.spokenAnswers") private var spokenAnswers = true
     @State private var speech = SpeechCaptureService()
@@ -122,8 +124,12 @@ struct VoiceQuerySheet: View {
     }
 
     private func resolve(_ command: VoiceCommand) -> VoiceAnswer {
+        if case .navigate(let destination) = command { return navigate(destination) }
         guard case .query(let query) = command else {
-            if case .unrecognized(let text) = command { return VoiceAnswers.notUnderstood(text) }
+            if case .unrecognized(let text) = command {
+                if logUnrecognized { VoicePhraseLog.append(text) }
+                return VoiceAnswers.notUnderstood(text)
+            }
             return VoiceAnswers.notUnderstood("")
         }
         switch query {
@@ -219,6 +225,51 @@ struct VoiceQuerySheet: View {
             VoiceCycleFact(code: $0, start: settings?.currentCycleStart, end: settings?.currentCycleEnd)
         }
         return VoiceAnswers.cycle(current: current, latestKnown: latest)
+    }
+
+    /// Navegación por voz: cambia de pestaña o abre la pantalla en una hoja (cierra esta primero).
+    private func navigate(_ destination: VoiceDestination) -> VoiceAnswer {
+        let tab: AppTab?
+        var screen: AppScreen?
+        switch destination {
+        case .sell: tab = .sell
+        case .products: tab = .products
+        case .receiving: tab = .receiving
+        case .customers: tab = .customers
+        case .settings: tab = .settings
+        case .profit: tab = nil; screen = .profit
+        case .salesHistory: tab = nil; screen = .salesHistory
+        case .magazine: tab = nil; screen = .magazine
+        case .orderDraft: tab = nil; screen = .orderDraft
+        case .offers: tab = nil; screen = .offers
+        case .account: tab = nil; screen = .account
+        case .customerOrder(let name):
+            tab = nil
+            let id = sellerId
+            let customers = fetch(FetchDescriptor<Customer>(predicate: #Predicate { $0.sellerId == id }))
+            let match = CustomerMatcher.resolve(name: name, in: customers.map { VoiceCandidate(id: $0.id, name: $0.displayName) })
+            guard case .found(let customerId) = match else {
+                return VoiceAnswer(text: "No encontré a “\(name)” entre tus clientes.")
+            }
+            var descriptor = FetchDescriptor<CustomerOrder>(predicate: #Predicate { $0.customerId == customerId },
+                                                            sortBy: [SortDescriptor(\.orderedAt, order: .reverse)])
+            descriptor.fetchLimit = 1
+            guard let order = fetch(descriptor).first else {
+                let display = customers.first { $0.id == customerId }?.displayName ?? name
+                return VoiceAnswer(text: "\(display) no tiene pedidos.")
+            }
+            screen = .customerOrder(id: order.id)
+        }
+        let router = router
+        if let tab { router.tab = tab }
+        dismiss()
+        if let screen {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                router.pendingScreen = screen
+            }
+        }
+        return VoiceAnswer(text: "Abriendo \(destination.label).")
     }
 
     private func accountSnapshot() -> NaturaAccountSnapshot? {

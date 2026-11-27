@@ -25,6 +25,8 @@ public final class AppRouter {
     public var tab: AppTab = .sell
     /// Acción de voz pendiente; la pantalla raíz la consume al estar lista (con sesión iniciada).
     public var pendingVoice: VoiceLaunch?
+    /// Pantalla pedida por voz ("abre la revista"); la raíz la muestra en una hoja.
+    public var pendingScreen: AppScreen?
 
     public init() {}
 
@@ -36,6 +38,50 @@ public final class AppRouter {
         case .productPhoto: break
         }
         pendingVoice = voice
+    }
+}
+
+/// Pantallas que se abren por voz en una hoja (navegación por voz).
+public enum AppScreen: Identifiable, Hashable, Sendable {
+    case profit, salesHistory, magazine, orderDraft, offers, account
+    case customerOrder(id: String)
+
+    public var id: String {
+        switch self {
+        case .customerOrder(let id): "customerOrder-\(id)"
+        default: String(describing: self)
+        }
+    }
+}
+
+/// Hoja con una pantalla pedida por voz.
+public struct AppScreenSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let screen: AppScreen
+    let sellerId: String
+
+    public init(screen: AppScreen, sellerId: String) {
+        self.screen = screen
+        self.sellerId = sellerId
+    }
+
+    public var body: some View {
+        NavigationStack {
+            Group {
+                switch screen {
+                case .profit: MarginReportScreen(sellerId: sellerId)
+                case .salesHistory: SalesHistoryScreen(sellerId: sellerId)
+                case .magazine: MagazineView(sellerId: sellerId).navigationTitle("Revista")
+                case .orderDraft: NaturaOrderDraftEntry(sellerId: sellerId)
+                case .offers: CycleOffersScreen(sellerId: sellerId)
+                case .account: NaturaAccountScreen(sellerId: sellerId)
+                case .customerOrder(let id): CustomerOrderEditor(sellerId: sellerId, orderId: id)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { dismiss() } }
+            }
+        }
     }
 }
 

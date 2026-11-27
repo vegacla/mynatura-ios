@@ -24,6 +24,9 @@ public struct SettingsScreen: View {
                 IssueStrategySection(sellerId: sellerId)
                 NaturaImportSection(sellerId: sellerId)
                 BackupSection(sellerId: sellerId)
+                Section {
+                    NavigationLink { VoiceSettingsScreen() } label: { Label("Voz", systemImage: "mic") }
+                }
                 Section("Historial y reportes") {
                     NavigationLink("Historial de ventas") { SalesHistoryScreen(sellerId: sellerId) }
                     NavigationLink("Ganancias") { MarginReportScreen(sellerId: sellerId) }

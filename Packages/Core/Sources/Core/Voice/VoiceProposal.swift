@@ -144,8 +144,8 @@ public enum VoiceProposalBuilder {
                 append(.receive(reference: reference, amount: amount, match: match))
             case .physicalCount(let counted):
                 append(.count(counted))
-            case .query:
-                // Las consultas no son chips: las responde la pantalla de consultas.
+            case .query, .navigate:
+                // Las consultas y la navegación no son chips: las resuelve la pantalla de consultas.
                 continue
             case .note(let text):
                 append(.note(text))

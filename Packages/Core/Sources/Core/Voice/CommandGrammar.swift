@@ -380,6 +380,17 @@ public enum CommandGrammar {
         guard !words.isEmpty else { return [] }
         let texts = Set(words.map(\.text))
 
+        let spokenWords = words.filter { !$0.isSeparator }.map(\.text)
+        if let destination = VoiceNavigation.destination(spokenWords) {
+            if case .customerOrder = destination {
+                let raw = words.filter { !$0.isSeparator }
+                if let index = raw.lastIndex(where: { $0.text == "de" }) {
+                    let name = VoiceText.joinRaw(Array(raw[(index + 1)...]))
+                    if !name.isEmpty { return [.navigate(.customerOrder(name: name))] }
+                }
+            }
+            return [.navigate(destination)]
+        }
         if texts.contains("credito") || texts.contains("cupo") {
             return [.query(.credit)]
         }
