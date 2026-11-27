@@ -14,7 +14,7 @@ Respuestas que definen la decisión:
 |---|---|---|
 | ¿Se usa la PWA o el PC? | No | El backend no tiene otro cliente que lo justifique |
 | ¿Otro dispositivo u otra persona? | No | No hace falta sincronizar entre dispositivos |
-| ¿Datos reales en el backend? | Solo pedidos y productos importados de Natura | Se pueden **volver a importar desde Natura**; no hay datos manuales que migrar (ver §7) |
+| ¿Datos reales en el backend? | Solo pedidos y productos importados de Natura; nada ingresado a mano | Se **vuelven a importar desde Natura** en la app; no hay nada que rescatar (§7) |
 
 Además:
 - **Natura se alcanza por HTTP simple**, sin navegador: minegocio y GSP se verificaron el 2026-11-26 (`unified-assistant-proposal.md` §6.2).
@@ -57,52 +57,102 @@ App iOS
   - `APIClient` hacia el backend y el login a la app (`SessionStore` con el backend);
   - el repo `mynatura` queda **archivado** como referencia.
 - **Se mantiene:** `Core`, `Persistence`, `DesignSystem` y las pantallas. Las acciones de `SyncEngine` (vender, recibir, conciliar…) pasan a un `Store` local que escribe directo en SwiftData, sin encolar.
-- **Credenciales de Natura:** igual que hoy, se piden al importar o consultar y viven solo en memoria. Opcional, a decidir: guardarlas en el Keychain con Face ID / Touch ID para no escribirlas cada vez.
+- **Credenciales de Natura: en el Keychain, protegidas con Touch ID** (decisión del 2026-11-26).
+  - Se guardan con `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` y `SecAccessControl(.biometryCurrentSet)` (con código del iPhone como alternativa): no van al respaldo de iCloud ni a otro equipo.
+  - Se usan solo al llamar a Natura, y siempre se pueden borrar desde Ajustes.
+  - **Reemplaza la regla "Credenciales de Natura nunca se persisten"** de `CLAUDE.md` y `ios-app-design.md`; se actualizan en M7.
+  - El Keychain del iPhone funciona con Apple ID gratis, sin entitlements.
 
 ---
 
-## 4. Costo, ganancia y **productos a costo cero (regalos)**
+## 4. Costo, ganancia, regalos de Natura y obsequios a terceros
 
 ### 4.1 Lo que hace hoy el backend (y hay que corregir)
 
 En la importación (`import-delivered-orders.ts`):
-1. Una línea de tipo **"Regalo"** se marca **vendible** (salvo revista o catálogo), pero su precio unitario suele venir como "-" → `purchaseUnitPriceCents = null`.
-2. El lote se crea con **costo `null`**. Al vender ese producto, `create-sale.ts` falla con *"No fue posible determinar el costo del lote"* cuando le toca ese lote: **un regalo no se puede vender**.
-3. El producto guarda `lastPurchaseUnitPriceCents = purchase ?? 0`: un regalo **pisa con 0 el último costo** de un producto que antes se compró pagando.
+1. Una línea **gratis de Natura** (precio "-") crea el lote con **costo `null`**. Al vender ese producto, `create-sale.ts` falla con *"No fue posible determinar el costo del lote"*.
+2. El producto guarda `lastPurchaseUnitPriceCents = purchase ?? 0`: una unidad gratis **pisa con 0 el último costo** de un producto que antes se compró.
+3. Las líneas gratis (muestras, bolsas, otra copia de revista) quedan **vendibles** por defecto, aunque en la práctica no se venden.
+4. El costeo solo admite FIFO y LIFO.
 
-### 4.2 Reglas nuevas (`Core`, con tests)
+### 4.2 Dos cosas distintas que se llaman "regalo"
 
-- **Costo desconocido ≠ costo cero.** Cada lote tiene `unitCost: Money?` y `costSource`:
+| Concepto | Qué es | Precio de venta | Costo | Efecto en la ganancia |
+|---|---|---|---|---|
+| **Gratis de Natura** | Llega en el pedido a costo 0: muestras, bolsas, otra copia de la revista, regalos por promoción | — (no se vende; el precio de venta **nunca** es 0) | 0 en el lote; ver §4.4 al consumirlo | Ninguno al recibirlo |
+| **Obsequio a terceros** | Algo que la consultora regala a un cliente o a otra persona | **0** (por eso no es venta) | El de los lotes consumidos, según el método de costeo | **Pérdida** igual a su costo |
 
-| `costSource` | Cuándo | `unitCost` |
-|---|---|---|
-| `purchased` | Línea con valor unitario > 0 | El valor pagado |
-| `free` | Línea de tipo regalo, gratis o promoción con valor 0 o "-" | **0** (conocido) |
-| `unknown` | No se pudo leer el valor de una línea pagada | `nil`; se puede completar a mano |
-| `manual` | Producto creado o ajustado a mano con costo ingresado | El ingresado |
+### 4.3 Reglas de entrada (recepción e import)
 
-- **Clasificación de la línea** (`NaturaLineClassifier`) según `Tipo` y valor unitario:
-  - **producto pagado:** vendible, costo = valor;
-  - **regalo o gratis** (`Tipo` = Regalo, Gratis o Promoción, con valor 0 o "-"): **entra al stock con costo 0**. Es vendible y también se puede regalar a un cliente;
-  - **material de apoyo** (revista, catálogo, folleto, bolsas): **no entra al stock vendible**, pero queda en el pedido para que la recepción cuadre.
-- **El último costo de compra** del producto se actualiza **solo con lotes `purchased`**. Un regalo no lo pisa.
-- **Consumo de lotes (FIFO/LIFO)** igual para todos los lotes. Un lote `free` aporta costo 0 a la venta, así que esa venta tiene **ganancia = precio de venta**.
-- **Venta con lote `unknown`:** se permite. La línea queda con "costo pendiente", la ganancia se marca **incompleta** (no 0) y se puede corregir después ingresando el costo.
-- **Salida por obsequio** (nuevo movimiento `giftOut`): entregar un producto gratis a un cliente o usarlo como muestra. Descuenta stock y consume lotes, **sin ingreso**. Su costo cuenta como **gasto de obsequios** en el reporte de ganancias.
-- **Reporte de ganancias**, separado en:
-  - ventas;
-  - costo de lo vendido (`purchased` + `manual`);
-  - **ganancia por regalos vendidos** (lotes `free`);
-  - **gasto en obsequios** (`giftOut`, al costo del lote);
-  - ventas con **costo pendiente**.
+- **Se clasifica por el valor unitario, no por el `Tipo`:**
+  - **valor > 0:** lote `purchased`, con costo = valor pagado;
+  - **valor 0 o "-":** lote `free`, con costo 0 conocido.
   
-  Así se ve cuánto de la ganancia viene de los regalos de Natura.
+  Una **muestra** puede llegar gratis o comprarse: se rige por esta misma regla.
+- **Producto nuevo creado por el import:** si su primera línea es `free`, queda **no vendible** por defecto (se puede regalar, no vender). Si es `purchased`, queda vendible. La consultora puede cambiarlo en la ficha.
+- **Material que no se controla** (revista, catálogo, bolsas): queda en el pedido para que la recepción cuadre. Entra al stock solo si la consultora lo quiere llevar; por defecto se controla, como no vendible, para poder registrar su entrega.
+- **El último costo de compra** del producto se actualiza **solo con lotes `purchased`** (o `manual`). Una unidad gratis nunca lo pisa.
+- **Costo desconocido ≠ costo cero.** `costSource` ∈ `purchased` · `free` · `manual` · `unknown`. `unknown` es una línea pagada cuyo valor no se pudo leer; se completa a mano.
 
-### 4.3 Otros precios
+### 4.4 Método de costeo y costo de lo que sale
+
+- **Método** (ajuste global, como hoy, con un caso nuevo): **FIFO** (el lote más antiguo), **LIFO** (el más reciente) o **Mayor precio** (el lote de mayor costo).
+- **Orden de consumo:** el método decide qué lotes se consumen. Los lotes `free` participan como cualquier otro: son unidades reales del stock. Con "Mayor precio" quedan naturalmente al final.
+- **Si una unidad sale de un lote `free` (costo 0), no se usa 0 como costo.** Se usa un **precio conocido según el método**, tomado de los lotes `purchased` y `manual` del producto, **aunque ya estén agotados** (historial de compras):
+
+| Método | Precio conocido que reemplaza al 0 |
+|---|---|
+| FIFO | El costo de compra **más antiguo** conocido |
+| LIFO | El costo de compra **más reciente** conocido |
+| Mayor precio | El **mayor** costo de compra conocido |
+
+  La línea queda **marcada** como "costo de referencia: unidad gratis de Natura", y se muestra así en la venta, el obsequio y el reporte.
+- **Si el producto nunca se compró** (una bolsa, una muestra que siempre llega gratis), no hay precio conocido: el costo queda en **0 y marcado** "sin costo conocido (gratis de Natura)".
+- **Lote `unknown`:** la línea queda con **costo pendiente** y la ganancia se marca **incompleta** (no se asume 0). Al completar el costo del lote, se recalcula.
+- El **costo efectivo y su origen** se guardan en cada línea de venta u obsequio al registrarla. El reporte no cambia si después se cambia el método.
+
+### 4.5 Ventas y obsequios
+
+- **Venta:** el precio de venta debe ser **> 0**. No se puede vender a 0.
+- **Obsequio a terceros:** se registra con el mismo flujo del carro, eligiendo **"Regalar"** (o con una línea a precio 0 y motivo *Regalo*, que hoy ya existe en `PricingRules`). Se guarda como **documento de obsequio**, no como venta:
+  - descuenta stock;
+  - consume lotes con el método de costeo (§4.4);
+  - no suma ingreso;
+  - su costo es **pérdida**.
+  
+  Puede tener cliente o destinatario y una nota ("muestra para Ana").
+- Se pueden regalar productos vendibles y no vendibles. Los gratis de Natura suelen terminar aquí.
+
+### 4.6 Reporte de ganancias
+
+```
+  Ventas (ingresos)
+− Costo de lo vendido            (lotes purchased/manual + costo de referencia de unidades gratis)
+= Margen bruto de ventas
+− Obsequios a terceros (pérdida) (costo de lo regalado, mismo cálculo)
+= Ganancia
+
+  Detalle informativo:
+  · unidades vendidas con costo de referencia (gratis de Natura)  ← cuántas y por cuánto
+  · obsequios sin costo conocido (gratis de Natura nunca comprados)
+  · ventas u obsequios con costo pendiente (lote unknown)          ← ganancia incompleta
+```
+
+Por periodo y por producto, como el reporte de margen actual.
+
+### 4.7 Otros precios
 - **Precio de venta sugerido:** de la revista del ciclo, como hoy; editable por producto.
 - **Precio del ciclo según ofertas y nivel** (GSP `cardSection`: `purchasePrice`, `resalePrice`, `points`, `promotionSummary`): **para planificar** el pedido y comparar. **No** cambia el costo de lo ya comprado: ese sale siempre de la línea del pedido entregado.
 
----
+### 4.8 Tests mínimos (M1)
+
+- Muestra comprada y después recibida gratis: el último costo no cambia, y la salida usa el costo conocido según el método.
+- FIFO, LIFO y Mayor precio con lotes mixtos `purchased` + `free`: qué lote se consume y con qué costo.
+- Producto solo gratis (bolsa) regalado: pérdida 0 y marcada "sin costo conocido".
+- Venta a precio 0: rechazada como venta y ofrecida como obsequio.
+- Obsequio de un producto pagado: pérdida = costo según el método.
+- Lote `unknown`: costo pendiente; al completarlo se recalcula.
+- Reporte: ventas − costo − obsequios = ganancia, con el detalle informativo.
 
 ## 5. Integración directa con Natura (portar del backend)
 
@@ -134,20 +184,14 @@ En la importación (`import-delivered-orders.ts`):
 
 ## 7. Migración de datos
 
-Los datos reales del backend son **pedidos y productos importados de Natura**, así que lo más simple y limpio es:
+El backend solo tiene pedidos y productos importados de Natura, sin nada ingresado a mano. Entonces la migración es:
 
-1. **Reimportar desde Natura en la app** (M3): pedidos entregados, líneas, costos y lotes. Ya con las reglas nuevas de §4, sin el problema de los regalos.
-2. **Rescatar lo agregado a mano**, si existe:
-   - EAN asociados;
-   - precios de venta editados;
-   - cantidades recibidas y cierres de recepción;
-   - conciliaciones;
-   - productos creados a mano.
-   
-   Un script de una sola vez en el backend (`export-for-ios`) genera un JSON con eso, y la app lo importa con el mismo formato del respaldo (§6).
-3. Verificar conteos (pedidos, líneas, productos, stock por producto) contra el backend antes de apagarlo.
+1. **Reimportar desde Natura en la app** (M3): pedidos entregados, líneas, costos y lotes, ya con las reglas de §4.
+2. Comparar conteos (pedidos, líneas, productos) con el backend una vez, y apagarlo.
 
----
+Sin script de exportación.
+
+**Nota sobre vender la app a otras consultoras** (idea mencionada, no en curso): el modelo local primero **no lo impide**, porque cada usuaria tendría sus datos en su iPhone, sin servidor que mantener. Requeriría cuenta de desarrollador de pago (App Store) y revisar los términos de uso de Natura sobre automatizar su sitio. El backend multiusuario que existía era la otra vía; queda archivado como referencia.
 
 ## 8. Etapas
 
@@ -155,11 +199,11 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 
 | # | Etapa | Entregable |
 |---|---|---|
-| M1 | Reglas de costo | `Core`: lotes con `costSource`, clasificador de líneas Natura (regalo, gratis, material), FIFO/LIFO con costo desconocido, `giftOut`, reporte de ganancias separado; tests |
+| M1 | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
 | M2 | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
 | M3 | Natura directo | Paquete `Natura`: login minegocio + import de pedidos entregados (JSON + HTML) + revista; reimportar todo en el iPhone |
 | M4 | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
-| M5 | Respaldo | Exportar / importar JSON, recordatorio; importar el JSON de `export-for-ios` (§7) |
+| M5 | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
 | M6 | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
 | M7 | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; se archiva el repo `mynatura`; se actualizan `CLAUDE.md` y `ios-app-design.md` |
 | M8 | Pedido Natura (después) | `natura-order-placement.md` con el flujo GSP, directo desde la app |
@@ -173,15 +217,20 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | Pérdida del iPhone o borrado de la app | Respaldo JSON + respaldo de iCloud del iPhone; recordatorio semanal |
 | Natura cambia HTML o API | Parseo aislado en `Natura` con tests de ejemplo; errores visibles; los datos propios no dependen de eso |
 | Akamai bloquea desde el iPhone | Mensaje y reintento; sin Playwright. Si fuera frecuente, reevaluar un proxy mínimo |
-| Regalos mal clasificados | Clasificador con tests y `Tipo` visible en la línea; cambiar la clasificación a mano en la recepción |
+| Costo de referencia discutible (unidad gratis valorizada) | Siempre marcado y visible por separado en el reporte; regla en `Core` con tests |
 | Firma de 7 días con Apple ID gratis | Reinstalar conserva datos; el respaldo cubre el peor caso |
 | Lógica del backend que no estaba en `Core` (lotes, asignación de costos) | M1 la porta con tests antes de tocar las pantallas |
 
 ---
 
-## 10. Preguntas abiertas
+## 10. Decisiones (2026-11-26)
 
-1. ¿Qué valores de **`Tipo`** aparecen en tus pedidos además de "Regalo"? (Por ejemplo "Gratis", "Muestra", "Promoción", "Material".) Define el clasificador de §4.2.
-2. Los regalos que recibes, ¿los **vendes**, los **regalas** a clientes, o ambas cosas? Las dos quedan soportadas; define el valor por defecto.
-3. ¿Guardar la contraseña de Natura en el **Keychain con Face ID / Touch ID**, o seguir pidiéndola cada vez?
-4. ¿Hay algo ingresado a mano en el backend que valga la pena rescatar (EAN, precios editados, recepciones)? Si no, la migración es solo reimportar.
+1. **Gratis de Natura:** llegan a costo 0, no se venden (muestras, bolsas, otra copia de la revista); el precio de venta de un producto nunca es 0.
+2. **Obsequios a terceros:** salen a precio 0 y son **pérdida** en la ganancia, al costo según el método.
+3. **Costo de ventas:** FIFO, LIFO o **Mayor precio**. Si la unidad viene de un lote gratis, se indica y se usa el precio conocido según el método (§4.4).
+4. **Muestras:** normalmente gratis, pero se pueden comprar; se clasifican por el valor de la línea.
+5. **Contraseña de Natura en el Keychain** con Touch ID.
+6. **Backend sin datos manuales:** la migración es reimportar desde Natura.
+
+### Abierta
+- Al **regalar** una unidad que vino gratis de un producto que alguna vez se compró, ¿la pérdida debe usar el costo de referencia (§4.4, regla general) o 0, porque esa unidad en particular no costó nada? El plan usa el costo de referencia por consistencia; cambiarlo es una línea en `Core`.
