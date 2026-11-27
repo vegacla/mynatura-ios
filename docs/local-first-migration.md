@@ -122,6 +122,10 @@ En la importación (`import-delivered-orders.ts`):
   
   Puede tener cliente o destinatario y una nota ("muestra para Ana").
 - Se pueden regalar productos vendibles y no vendibles. Los gratis de Natura suelen terminar aquí.
+- **Mismo cálculo de costo que la venta (§4.4):** el método de costeo decide qué lote sale y, si es un lote gratis, qué precio conocido se usa. Ejemplo con un producto comprado a $3.000 (enero) y $3.500 (marzo), y 1 unidad gratis (febrero) en stock junto a las compradas:
+  - **FIFO:** sale primero lo más antiguo. Si la gratis es la más antigua en stock, la pérdida es $3.000 (compra más antigua conocida).
+  - **LIFO:** sale primero lo más reciente. Si sale la gratis, la pérdida es $3.500 (compra más reciente conocida).
+  - **Mayor precio:** sale primero el lote de $3.500. La gratis sale solo cuando no queda stock comprado, y en ese caso la pérdida es $3.500 (mayor costo conocido).
 
 ### 4.6 Reporte de ganancias
 
@@ -232,5 +236,4 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 5. **Contraseña de Natura en el Keychain** con Touch ID.
 6. **Backend sin datos manuales:** la migración es reimportar desde Natura.
 
-### Abierta
-- Al **regalar** una unidad que vino gratis de un producto que alguna vez se compró, ¿la pérdida debe usar el costo de referencia (§4.4, regla general) o 0, porque esa unidad en particular no costó nada? El plan usa el costo de referencia por consistencia; cambiarlo es una línea en `Core`.
+7. **Obsequio de una unidad gratis de un producto que alguna vez se compró:** se aplica la **misma regla que en la venta**, según el método. El método decide qué lote sale; si sale un lote gratis, se usa el precio conocido de ese método (§4.4). No hay caso especial para obsequios.
