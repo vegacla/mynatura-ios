@@ -311,9 +311,12 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 
 - **Core (`ReceiptOcr`, tests en Linux):** espejo de `natura-order-receipt-ocr.ts` y `apply-order-receipt-ocr.ts`:
   - agrupa las palabras de Vision en filas por su centro vertical (Vision entrega las columnas de la tabla por separado);
-  - con el encabezado (`Código`, `Descripción`, `Cant.`, `Precio Normal`, `Precio Ciclo`, `Precio Venta`) separa columnas por posición; sin encabezado, lee cada fila como texto (SKU, descripción, cantidad, montos en orden);
+  - **formato vigente de la boleta = el del Excel del pedido:** `Cant.` · `Código` · `Descripción` · `Marca` · `Precio revista (uni.)` · `Precio revista (total)` · `Precio CB (total)` · `Ganancia (total)`. Se excluye la `TASA DE SERVICIO`;
+  - con el encabezado, separa columnas por posición; sin encabezado, lee cada fila como texto (cantidad, código, descripción y hasta 4 montos al final, con o sin punto de miles);
+  - también entiende el formato que leía el backend (`Precio Normal` · `Precio Ciclo` · `Precio Venta`);
   - una fila por SKU (la de mayor confianza);
-  - precio de venta propuesto y cantidad propuesta (tope: lo pedido) con las mismas reglas del backend;
+  - precio de venta propuesto = `Precio revista (uni.)` (en el formato anterior, las reglas del backend) y cantidad propuesta (tope: lo pedido). El `Precio CB` se lee pero no se aplica: el costo ya viene del Excel;
+  - como la boleta trae lo mismo que el Excel, el OCR es **respaldo** (cuarta fuente de §7.1): sirve cuando el Excel no llegó o para revisar un pedido impreso;
   - cruce con las líneas del pedido por SKU; OCR "leído" si alguna línea coincide, si no "falló".
 - **Features (`ReceiptReader`):** `VNRecognizeTextRequest` (preciso, sin corrección de idioma) con la caja de cada palabra. Si con la orientación de la foto no salen filas, prueba las otras tres y se queda con la mejor (como el backend con 0/±90/180°).
 - **Sync (`applyReceiptReading`):** guarda las propuestas en las líneas (reemplaza las anteriores), el estado y la fecha del OCR. "Aceptar propuestas" las aplica y las limpia.

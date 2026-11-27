@@ -22,6 +22,62 @@ struct ReceiptOcrTests {
         + row(0.30, [("Subtotal", 0.15), ("43.970", 0.88)])
     }
 
+    // MARK: Formato vigente (igual al Excel del pedido)
+
+    private var magazineReceipt: [OcrWord] {
+        row(0.10, [("Cant.", 0.02), ("Código", 0.07), ("Descripción", 0.16), ("Marca", 0.50),
+                   ("Precio", 0.58), ("revista", 0.61), ("(uni.)", 0.645), ("Precio", 0.68), ("revista", 0.71),
+                   ("(total)", 0.745), ("Precio", 0.78), ("CB", 0.81), ("(total)", 0.83), ("Ganancia", 0.89), ("(total)", 0.95)])
+        + row(0.15, [("3", 0.025), ("150225", 0.07), ("Desodorante", 0.16), ("roll-on", 0.25), ("75", 0.31), ("ML", 0.33),
+                     ("NATURA", 0.50), ("5.590", 0.59), ("16.770", 0.69), ("12.591", 0.79), ("4.179", 0.90)])
+        + row(0.20, [("1", 0.025), ("280349", 0.07), ("Bolsa", 0.16), ("regalo", 0.21), ("NATURA", 0.50),
+                     ("$3.990", 0.59), ("$3.990", 0.69), ("0", 0.79), ("$3.990", 0.90)])
+        + row(0.25, [("1", 0.025), ("1", 0.07), ("TASA", 0.16), ("DE", 0.20), ("SERVICIO", 0.22),
+                     ("0", 0.59), ("0", 0.69), ("0", 0.79)])
+        + row(0.30, [("TOTALES", 0.50), ("20.760", 0.69), ("12.591", 0.79)])
+    }
+
+    @Test func magazineLayoutByColumns() {
+        let rows = ReceiptOcr.extractRows(from: magazineReceipt)
+        #expect(rows.count == 2)
+        #expect(rows[0] == ReceiptOcrRow(naturaSku: "150225", description: "Desodorante roll-on 75 ML", quantity: 3,
+                                         unitSalePesos: 5590, totalSalePesos: 16770, costTotalPesos: 12591,
+                                         rawText: rows[0].rawText, confidence: rows[0].confidence))
+        #expect(rows[1].naturaSku == "280349")
+        #expect(rows[1].costTotalPesos == 0)
+        #expect(ReceiptOcr.suggestedSalePrice(rows[0]) == 5590)
+        #expect(ReceiptOcr.suggestedSalePrice(rows[1]) == 3990)
+    }
+
+    @Test func magazineLayoutFromRawText() {
+        let text = """
+        PEDIDO 811111100 CICLO 18/2026 FECHA 22-11-2026
+        Cant. Código Descriptions Marca Precio revista (uni.) Precio revista (total) Precio CB (total) Ganancia (total)
+        3 150225 DESODORANTE ROLL-ON 75 ML NATURA 5.590 16.770 12.591 4.179
+        1 59313 GEL FACIAL 30 ML NATURA 9090 9090 6824 2266
+        1 1 TASA DE SERVICIO 0 0 0
+        2 291870 PACK X2 NATURA 25790
+        TOTALES 25.860 19.415
+        """
+        let rows = ReceiptOcr.extractRows(rawText: text)
+        #expect(rows.count == 2)
+        #expect(rows[0].quantity == 3)
+        #expect(rows[0].description == "DESODORANTE ROLL-ON 75 ML NATURA")
+        #expect(rows[0].unitSalePesos == 5590)
+        #expect(rows[0].costTotalPesos == 12591)
+        #expect(rows[1].naturaSku == "59313")
+        #expect(rows[1].quantity == 1)
+        #expect(rows[1].unitSalePesos == 9090)
+        #expect(ReceiptOcr.guessLayout(text) == .magazine)
+    }
+
+    @Test func magazineRowWithoutUnitPriceUsesTotal() {
+        let row = ReceiptOcrRow(naturaSku: "1", description: "x", quantity: 2, totalSalePesos: 51580, rawText: "", confidence: 1)
+        #expect(ReceiptOcr.suggestedSalePrice(row) == 25790)
+    }
+
+    // MARK: Formato anterior (backend)
+
     @Test func groupsWordsIntoRows() {
         let lines = ReceiptOcr.lines(from: receipt)
         #expect(lines.count == 4)
@@ -42,7 +98,8 @@ struct ReceiptOcrTests {
     }
 
     @Test func fallsBackToRawTextWithoutHeader() {
-        let rows = ReceiptOcr.extractRows(rawText: "Pedido 811111100\n70983 Kaiak Clásico 2 25.980 19.990 39.980\n| 55555 Crema 1 $4.990 |")
+        let rows = ReceiptOcr.extractRows(rawText: "Pedido 811111100\n70983 Kaiak Clásico 2 25.980 19.990 39.980\n| 55555 Crema 1 $4.990 |",
+                                          layout: .cycle)
         #expect(rows.count == 2)
         #expect(rows[0] == ReceiptOcrRow(naturaSku: "70983", description: "Kaiak Clásico", quantity: 2,
                                          priceNormalPesos: 25980, priceCyclePesos: 19990, priceSalePesos: 39980,
