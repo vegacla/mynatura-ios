@@ -100,6 +100,10 @@ extension BackupFile {
         var cyclePurchasePesos: Int?
         var cycleResalePesos: Int?
         var cyclePoints: Int?
+        var cycleRegularPurchasePesos: Int?
+        var cycleRegularResalePesos: Int?
+        var cycleDiscountPercent: Int?
+        var cycleOfferText: String?
     }
 
     public struct Stock: Codable, Sendable, Equatable {
@@ -230,7 +234,9 @@ public enum BackupService {
                                    lastSuggestedSalePesos: $0.lastSuggestedSalePesos, barcodes: $0.barcodes,
                                    category: $0.category, brand: $0.brand, imageURL: $0.imageURL, cycleCode: $0.cycleCode,
                                    cyclePurchasePesos: $0.cyclePurchasePesos, cycleResalePesos: $0.cycleResalePesos,
-                                   cyclePoints: $0.cyclePoints)
+                                   cyclePoints: $0.cyclePoints, cycleRegularPurchasePesos: $0.cycleRegularPurchasePesos,
+                                   cycleRegularResalePesos: $0.cycleRegularResalePesos,
+                                   cycleDiscountPercent: $0.cycleDiscountPercent, cycleOfferText: $0.cycleOfferText)
             },
             stock: try all(FetchDescriptor<StockItem>(predicate: #Predicate { $0.sellerId == sellerId })).map {
                 BackupFile.Stock(sellerProductId: $0.sellerProductId, naturaSku: $0.naturaSku, name: $0.name,
@@ -392,6 +398,10 @@ public enum BackupService {
             product.cyclePurchasePesos = item.cyclePurchasePesos
             product.cycleResalePesos = item.cycleResalePesos
             product.cyclePoints = item.cyclePoints
+            product.cycleRegularPurchasePesos = item.cycleRegularPurchasePesos
+            product.cycleRegularResalePesos = item.cycleRegularResalePesos
+            product.cycleDiscountPercent = item.cycleDiscountPercent
+            product.cycleOfferText = item.cycleOfferText
             context.insert(product)
         }
         for item in backup.stock {

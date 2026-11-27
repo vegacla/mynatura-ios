@@ -25,6 +25,11 @@ public final class CatalogProduct {
     public var cyclePurchasePesos: Int?
     public var cycleResalePesos: Int?
     public var cyclePoints: Int?
+    /// Oferta del ciclo (M6): precio normal cuando hay descuento, % y texto (descuento, promoción o regalo).
+    public var cycleRegularPurchasePesos: Int?
+    public var cycleRegularResalePesos: Int?
+    public var cycleDiscountPercent: Int?
+    public var cycleOfferText: String?
 
     public init(id: String, sellerId: String, naturaSku: String, name: String, source: ProductSource,
                 isSellable: Bool, lastPurchasePesos: Int, lastSuggestedSalePesos: Int?, barcodes: [String],
@@ -46,6 +51,13 @@ public final class CatalogProduct {
     public var syncState: EntitySyncState {
         get { EntitySyncState(rawValue: syncStateRaw) ?? .synced }
         set { syncStateRaw = newValue.rawValue }
+    }
+
+    /// Tiene oferta en el ciclo `cycle` (el vigente).
+    public func hasOffer(inCycle cycle: Int?) -> Bool {
+        guard let cycle, cycleCode == cycle else { return false }
+        return CycleOffer.isOffer(text: cycleOfferText, regularPesos: cycleRegularPurchasePesos ?? cycleRegularResalePesos,
+                                  currentPesos: cycleRegularPurchasePesos != nil ? cyclePurchasePesos : cycleResalePesos)
     }
 
     public var lastPurchase: Money { Money(pesos: lastPurchasePesos) }

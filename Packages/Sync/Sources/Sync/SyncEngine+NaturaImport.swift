@@ -79,8 +79,16 @@ extension SyncEngine {
 
             var notes: [String] = []
             do {
+                progress("Leyendo tu cuenta…")
+                storeAccount(sellerId: sellerId, documents: try await client.accounts())
+            } catch {
+                let detail = (error as? NaturaError)?.message ?? error.localizedDescription
+                notes.append("cuenta no disponible (\(detail))")
+            }
+            do {
                 progress("Leyendo el ciclo y su catálogo…")
                 try await client.openGsp()
+                storeAccount(sellerId: sellerId, credit: await client.credit)
                 let current = settings(sellerId: sellerId)
                 if let cycle = try await client.currentCycle() {
                     current.currentCycleCode = cycle.code
@@ -117,6 +125,54 @@ extension SyncEngine {
             save()
             return .failure(ActionError("No se pudo importar desde Natura: \(error.localizedDescription)"))
         }
+    }
+
+    /// Solo cuenta, crédito y ciclo (M6), sin pedidos ni catálogo: más rápido que la importación completa.
+    public func refreshNaturaAccount(sellerId: String, customerCode: String, password: String) async -> Result<String, ActionError> {
+        guard connectivity.isOnline else { return .failure(ActionError("Necesitas conexión para leer tu cuenta Natura.")) }
+        let client = NaturaClient()
+        do {
+            try await client.login(customerCode: customerCode, password: password)
+            var notes: [String] = []
+            do {
+                storeAccount(sellerId: sellerId, documents: try await client.accounts())
+            } catch {
+                notes.append("pagos no disponibles (\((error as? NaturaError)?.message ?? error.localizedDescription))")
+            }
+            do {
+                try await client.openGsp()
+                storeAccount(sellerId: sellerId, credit: await client.credit)
+                if let cycle = try await client.currentCycle() {
+                    let current = settings(sellerId: sellerId)
+                    current.currentCycleCode = cycle.code
+                    current.currentCycleStart = cycle.start
+                    current.currentCycleEnd = cycle.end
+                }
+            } catch {
+                notes.append("crédito y ciclo no disponibles (\((error as? NaturaError)?.message ?? error.localizedDescription))")
+            }
+            save()
+            return .success(notes.isEmpty ? "Cuenta actualizada." : "Cuenta actualizada, pero: " + notes.joined(separator: "; ") + ".")
+        } catch let error as NaturaError {
+            if case .credentials = error { return .failure(ActionError(error.message, isCredentialError: true)) }
+            return .failure(ActionError(error.message))
+        } catch {
+            return .failure(ActionError("No se pudo leer la cuenta: \(error.localizedDescription)"))
+        }
+    }
+
+    func storeAccount(sellerId: String, documents: [NaturaAccountDocument]? = nil, credit: NaturaCredit? = nil) {
+        let snapshot: NaturaAccountSnapshot
+        if let existing = fetchAll(FetchDescriptor<NaturaAccountSnapshot>(predicate: #Predicate { $0.sellerId == sellerId })).first {
+            snapshot = existing
+        } else {
+            snapshot = NaturaAccountSnapshot(sellerId: sellerId)
+            context.insert(snapshot)
+        }
+        snapshot.fetchedAt = .now
+        if let documents { snapshot.documents = documents }
+        if let credit { snapshot.credit = credit }
+        save()
     }
 
     /// La primera vez que se importa directo: se borra lo bajado del backend (pedidos, líneas, lotes, stock, kardex,
@@ -209,6 +265,10 @@ extension SyncEngine {
             product.cyclePurchasePesos = item.purchasePesos
             product.cycleResalePesos = item.resalePesos
             product.cyclePoints = item.points
+            product.cycleRegularPurchasePesos = item.regularPurchasePesos
+            product.cycleRegularResalePesos = item.regularResalePesos
+            product.cycleDiscountPercent = item.discountPercent
+            product.cycleOfferText = item.offerText
             if product.lastSuggestedSalePesos == nil { product.lastSuggestedSalePesos = item.resalePesos }
         }
         save()

@@ -11,6 +11,7 @@ public enum NaturaParseError: Error, Equatable, Sendable {
     case missingItemsTable
     case invalidOrders
     case invalidReport
+    case invalidAccounts
 
     public var message: String {
         switch self {
@@ -18,6 +19,7 @@ public enum NaturaParseError: Error, Equatable, Sendable {
         case .bundleFormatChanged: "Natura cambió el formato de su configuración."
         case .missingItemsTable: "No se encontró la tabla de productos del pedido."
         case .invalidOrders: "Natura respondió una lista de pedidos inesperada."
+        case .invalidAccounts: "Natura respondió una cuenta (mis-cuentas) inesperada."
         case .invalidReport: "No se pudo leer el Excel del pedido."
         }
     }

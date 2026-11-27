@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada (2026-11-26). **M1, M2, M3 y M5 implementadas** (sin probar en iPhone); **M4 descartada** (el Excel del pedido la reemplaza); M6–M8 pendientes.
+> **Estado:** decisión tomada (2026-11-26). **M1, M2, M3, M5 y M6 implementadas** (sin probar en iPhone); **M4 descartada** (el Excel del pedido la reemplaza); M7–M8 pendientes.
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 
@@ -254,7 +254,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | M3 ✅ | Natura directo | Paquete `Natura`: login (minegocio + GSP) + import de **todos** los pedidos entregados (JSON + HTML) como lotes recibidos + catálogo del ciclo actual (`cardSection`, categorías) sin repetir + revista; "Agregar inventario actual" (diferencia = ventas previas, FIFO); sin productos manuales; sin leer el backend |
 | M4 ✖ | OCR local | **Descartada** (2026-11-27): la boleta trae lo mismo que el Excel del pedido, que la app baja sola al importar. Ver §8.3 |
 | M5 ✅ | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
-| M6 | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
+| M6 ✅ | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
 | M7 | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; se archiva el repo `mynatura`; se actualizan `CLAUDE.md` y `ios-app-design.md` |
 | M8 | Pedido Natura (después) | `natura-order-placement.md` con el flujo GSP, directo desde la app |
 
@@ -330,6 +330,24 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
   - en Ajustes › Natura: interruptor "Guardar en este iPhone (Touch ID)", que se guarda solo si el login funcionó; "Olvidar contraseña". Con contraseña guardada, "Actualizar desde Natura" pide Touch ID;
   - si Natura rechaza la contraseña guardada, se borra y se pide de nuevo. Cerrar sesión también la borra.
 - **Por verificar en el iPhone:** la hoja de compartir con Drive y correo, restaurar un respaldo real, y el Touch ID (incluido el caso sin código del iPhone, que impide guardar la contraseña).
+
+## 8.5 Implementación M6
+
+- **Natura (`NaturaClient`):**
+  - `accounts()`: `GET /pedidos/ajax/mis-cuentas?order=0&state=`. Con `state` vacío llegan todos los documentos, abiertos y cerrados; la app filtra lo pendiente;
+  - al abrir GSP se guarda el **crédito** y el **bloqueo** de `authCommercialInfo` (`credit { available limit additional }`, `isBlocked`);
+  - **ofertas** en `cardSection`: `discountTag` (lista, p. ej. "37%"), `percentageDiscount`, `promotionSummary { description details { label } }`, `gifts { name }` y el precio normal (`from`) cuando es mayor al vigente (`to`);
+  - **corrección del catálogo del ciclo (M3):** en las tarjetas simples el precio, los puntos y la imagen vienen en la tarjeta (`products[0]` los trae en `null`). Antes quedaban sin precio.
+- **Core (tests en Linux, hoy sin correr en CI):** `NaturaAccounts.decode` (montos como texto, fechas ISO), `NaturaAccountSummary` (saldo pendiente, próximo vencimiento no vencido, atrasos con monto y días máximos), `NaturaCredit` y `CycleOffer` (texto y regla de oferta).
+- **Persistence:** `NaturaAccountSnapshot` (caché por cuenta: crédito, bloqueo, documentos y fechas de lectura; no va en el respaldo). `CatalogProduct` suma precio normal, % y texto de la oferta del ciclo (sí van en el respaldo).
+- **Sync:**
+  - la importación lee también la cuenta y el crédito. Si fallan, queda una nota y los pedidos se importan igual;
+  - `refreshNaturaAccount`: actualización liviana, solo cuenta, crédito y ciclo.
+- **Pantallas** (Ajustes › Natura):
+  - **Cuenta Natura:** ciclo vigente con inicio, cierre y días que quedan; aviso de cuenta bloqueada; crédito disponible, límite y adicional; pagos con saldo pendiente, próximo vencimiento, aviso de atrasos y documentos pendientes. "Actualizar" usa la contraseña guardada (Touch ID); sin red, muestra la última lectura con su fecha;
+  - **Ofertas del ciclo:** productos del ciclo vigente con descuento, promoción o regalo, por categoría, con buscador, precio de compra (y el normal), de venta y puntos.
+- **Fuera de M6** (quedan para el Asistente, U5–U6): respuestas por voz ("¿cuánto crédito tengo?", "¿cuándo vence mi pago?") y búsqueda en la revista.
+- **Por verificar en el iPhone:** los valores reales de `mis-cuentas` (si `isOverdue` y `overdueDays` coinciden), el crédito en `authCommercialInfo` y que la consulta de `cardSection` con los campos de oferta no sea rechazada.
 
 ## 9. Riesgos
 

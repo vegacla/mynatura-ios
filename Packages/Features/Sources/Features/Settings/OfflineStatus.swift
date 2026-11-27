@@ -191,6 +191,16 @@ struct NaturaImportSection: View {
                     Text(cycleText(code: code, end: current?.currentCycleEnd))
                 }
             }
+            NavigationLink {
+                NaturaAccountScreen(sellerId: sellerId)
+            } label: {
+                Label("Cuenta Natura (crédito y pagos)", systemImage: "person.text.rectangle")
+            }
+            NavigationLink {
+                CycleOffersScreen(sellerId: sellerId)
+            } label: {
+                Label("Ofertas del ciclo", systemImage: "tag")
+            }
             if sync.needsInitialInventory(sellerId: sellerId) {
                 NavigationLink {
                     InitialInventoryScreen(sellerId: sellerId)

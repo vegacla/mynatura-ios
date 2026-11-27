@@ -30,9 +30,16 @@ public struct CycleCatalogItem: Equatable, Sendable {
     public let brand: String?
     public let category: String
     public let points: Int?
+    /// Precio vigente del ciclo (con descuento, si hay).
     public let purchasePesos: Int?
     public let resalePesos: Int?
     public let imageURL: String?
+    /// Precio normal (`from`) cuando hay descuento.
+    public let regularPurchasePesos: Int?
+    public let regularResalePesos: Int?
+    public let discountPercent: Int?
+    /// Descuento, promoción o regalo (nil = sin oferta explícita).
+    public let offerText: String?
 }
 
 public struct NaturaCycleInfo: Equatable, Sendable {
@@ -56,6 +63,8 @@ public actor NaturaClient {
     private var accessToken: String?
     private var xAppToken = ""
     private var personCode = ""
+    /// Crédito y bloqueo, leídos al abrir GSP (`authCommercialInfo`).
+    public private(set) var credit: NaturaCredit?
 
     public init() {}
 
@@ -187,6 +196,12 @@ public actor NaturaClient {
         do { return try NaturaItemsHTML.parse(html) } catch { throw NaturaError.unexpected(error.message) }
     }
 
+    /// Cuentas y vencimientos (todos los documentos; `state` vacío).
+    public func accounts() async throws -> [NaturaAccountDocument] {
+        let data = try await xhr(URL(string: "https://minegocio.natura.cl/pedidos/ajax/mis-cuentas?order=0&state=")!, step: "mis cuentas")
+        do { return try NaturaAccounts.decode(data) } catch { throw NaturaError.unexpected(error.message) }
+    }
+
     /// Ciclo vigente (AAAACC) desde el home de minegocio.
     public func homeCycle() async throws -> Int? {
         MinegocioHome.currentCycle(fromHTML: try await text(URLRequest(url: URL(string: "https://minegocio.natura.cl/home")!), step: "home"))
@@ -233,6 +248,12 @@ public actor NaturaClient {
                                            variables: ["channelId": 1, "showcaseAccess": true, "businessModelId": 1, "systemId": 1],
                                            operation: "authCommercialInfo")
         updateToken(commercial, ["profileGetCommercialInfo", "xAppToken"])
+        if let payload = dig(commercial, ["profileGetCommercialInfo", "payload"]) as? [String: Any] {
+            let creditInfo = payload["credit"] as? [String: Any]
+            credit = NaturaCredit(availablePesos: Self.number(creditInfo?["available"]), limitPesos: Self.number(creditInfo?["limit"]),
+                                  additionalPesos: Self.number(creditInfo?["additional"]),
+                                  isBlocked: payload["isBlocked"] as? Bool ?? false)
+        }
     }
 
     /// Ciclo actual con fechas (GSP `consultantSection`).
@@ -268,13 +289,22 @@ public actor NaturaClient {
                 let cards = dig(data, ["cardSection", "cards"]) as? [[String: Any]] ?? []
                 for card in cards {
                     let products = (card["products"] as? [[String: Any]]).flatMap { $0.isEmpty ? nil : $0 } ?? [card]
+                    // En una tarjeta simple el precio y la oferta vienen en la tarjeta, no en `products[0]`.
+                    let single = products.count == 1
+                    let offerText = Self.offerText(card)
                     for product in products {
                         guard let rawCode = product["code"], let sku = Self.code(rawCode), items[sku] == nil else { continue }
+                        let purchase = product["purchasePrice"].flatMap { $0 is NSNull ? nil : $0 } ?? (single ? card["purchasePrice"] : nil)
+                        let resale = product["resalePrice"].flatMap { $0 is NSNull ? nil : $0 } ?? (single ? card["resalePrice"] : nil)
                         items[sku] = CycleCatalogItem(
                             sku: sku, name: product["name"] as? String ?? card["name"] as? String ?? sku,
                             brand: product["brand"] as? String ?? card["brand"] as? String, category: category.label,
-                            points: Self.number(product["points"]), purchasePesos: Self.price(product["purchasePrice"]),
-                            resalePesos: Self.price(product["resalePrice"]), imageURL: product["image"] as? String)
+                            points: Self.number(product["points"]) ?? (single ? Self.number(card["points"]) : nil),
+                            purchasePesos: Self.price(purchase), resalePesos: Self.price(resale),
+                            imageURL: product["image"] as? String ?? (single ? card["image"] as? String : nil),
+                            regularPurchasePesos: Self.regular(purchase), regularResalePesos: Self.regular(resale),
+                            discountPercent: Self.number(card["percentageDiscount"]),
+                            offerText: single ? offerText : offerText.map { "Kit: " + $0 })
                     }
                 }
                 let totalPages = Self.number(dig(data, ["cardSection", "totalPages"])) ?? 1
@@ -340,6 +370,23 @@ public actor NaturaClient {
         if let int = value as? Int { return int }
         if let double = value as? Double { return Int(double.rounded()) }
         return nil
+    }
+
+    /// Precio normal (`from`) solo si es mayor al vigente (`to`).
+    static func regular(_ value: Any?) -> Int? {
+        guard let range = value as? [String: Any], let from = number(range["from"]), let to = number(range["to"]), from > to
+        else { return nil }
+        return from
+    }
+
+    /// Texto de la oferta de una tarjeta: `discountTag`, `percentageDiscount`, `promotionSummary` y `gifts`.
+    static func offerText(_ card: [String: Any]) -> String? {
+        let summary = card["promotionSummary"] as? [String: Any]
+        let labels = (summary?["details"] as? [[String: Any]] ?? []).compactMap { $0["label"] as? String }
+        let gifts = (card["gifts"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+        return CycleOffer.text(discountTags: card["discountTag"] as? [String] ?? [],
+                               percentageDiscount: number(card["percentageDiscount"]),
+                               promotion: summary?["description"] as? String, promotionLabels: labels, gifts: gifts)
     }
 
     /// `{ from, to }`: `to` es el precio vigente (con descuento); si no viene, `from`.
@@ -436,7 +483,9 @@ enum GspQueries {
                       $size: Int = 12, $lastPromotionCodes: [Int] = []) {
       cardSection(context: $context category: $category cycle: $cycle filterOptions: $filterOptions page: $page size: $size
                   lastPromotionCodes: $lastPromotionCodes) {
-        cards { name brand code points image type
+        cards { name brand code points image type discountTag percentageDiscount
+          promotionSummary { description details { label } }
+          gifts { name }
           products { code name image brand points purchasePrice { from to } resalePrice { from to } }
           purchasePrice { from to } resalePrice { from to } }
         totalItens totalPages } }

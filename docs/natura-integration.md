@@ -109,7 +109,7 @@ Encabezados XHR: `accept: */*`, `referer: https://minegocio.natura.cl/pedidos`, 
 - Si no está la tabla, el formato cambió: error `missing_order_items_table`.
 
 ### 2.4 Otros
-- **Cuentas y vencimientos:** `GET /pedidos/ajax/mis-cuentas?order=…&state=…` → `[{ number, orderingNumber, isOpen, isOverdue, issueDate, dueDate, originalValue, currentBalance, overdueDays, orderStatus }]`. Falta confirmar qué `state` filtra lo pendiente.
+- **Cuentas y vencimientos:** `GET /pedidos/ajax/mis-cuentas?order=0&state=` → `[{ number, orderingNumber, isOpen, isOverdue, issueDate, dueDate, originalValue, currentBalance, overdueDays, orderStatus }]`. Con `state` vacío llegan todos los documentos (abiertos y cerrados). `number` y `orderingNumber` son enteros, `originalValue` y `currentBalance` texto ("190.614"), las fechas ISO 8601 y `overdueDays` entero.
 - **Boleta:** `/pedidos/mis-cuentas/{orderNumber}` ("Ver Boleta", PDF en la página).
 - **Exportar todos los pedidos:** `/pedidos/export-orders/{codigoConsultora}/0` ("Exportar Excel", formato no revisado).
 - **Ciclo vigente (número):** el HTML de `GET /home` trae `var query_cycle = [AAAACC];`.
@@ -163,6 +163,7 @@ query consultantSection { consultantSection {
   actualCycle { number label startDate endDate year status remainingDays orderDate } } }
 ```
   Verificado: `{ number: 19, year: 2026, startDate: 2026-11-26…, endDate: 2026-12-09…, remainingDays: 13, status: CURRENT }`.
+- **Tarjeta simple:** el precio (`purchasePrice`/`resalePrice { from to }`), los puntos y la imagen vienen en la **tarjeta**; `products[0]` los trae en `null`. Ofertas: `discountTag` (lista de textos, p. ej. "37%"), `percentageDiscount` (entero), `promotionSummary { description details { label infos { title description } } }`, `gifts { name description }`.
 - **Catálogo del ciclo y ofertas:** `cardSection(context, cycle, category, page, filterOptions{productCategories, productLines}, lastPromotionCodes)` → `cards[{ code, name, description, brand, image, categories, points, purchasePrice, resalePrice, promotionSummary, gifts, discountTag, percentageDiscount, stockStatus, products[…], type }]`, `totalItens`, `totalPages`. El texto exacto de la consulta está en la captura `gsp.natura.com.har` (local).
 - **Canasta y carro** (no implementado; leer, no confirmar):
   - `syncBasket{cycle}` → `{ total, cartId, shouldRedirectToCart }`;
@@ -207,7 +208,7 @@ query consultantSection { consultantSection {
 
 ## 6. Pendiente de capturar o confirmar
 - El campo exacto de la lista de pedidos que corresponde a `{number}` del Excel.
-- `mis-cuentas`: valores de `state`.
+- `mis-cuentas`: otros valores de `state` (con vacío llegan todos, y basta).
 - Checkout de GSP (confirmar pedido).
 - Ids de la API de productos de la revista.
 - Formato de "Exportar Excel" (todos los pedidos).
