@@ -55,7 +55,7 @@ App iOS
 - **Se elimina:**
   - `SyncEngine` (cola de mutaciones, push/pull, idempotencia, reasignación de IDs);
   - `APIClient` hacia el backend y el login a la app (`SessionStore` con el backend);
-  - el repo `mynatura` queda **archivado** como referencia.
+  - el repo `mynatura` queda **tal cual**, como referencia (no se modifica ni se archiva).
 - **Se mantiene:** `Core`, `Persistence`, `DesignSystem` y las pantallas. Las acciones de `SyncEngine` (vender, recibir, conciliar…) pasan a un `Store` local que escribe directo en SwiftData, sin encolar.
 - **Credenciales de Natura: en el Keychain, protegidas con Touch ID** (decisión del 2026-11-26).
   - Se guardan con `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` y `SecAccessControl(.biometryCurrentSet)` (con código del iPhone como alternativa): no van al respaldo de iCloud ni a otro equipo.
@@ -191,11 +191,12 @@ Por periodo y por producto, como el reporte de margen actual.
 El backend solo tiene pedidos y productos importados de Natura, sin nada ingresado a mano. Entonces la migración es:
 
 1. **Reimportar desde Natura en la app** (M3): pedidos entregados, líneas, costos y lotes, ya con las reglas de §4.
-2. Comparar conteos (pedidos, líneas, productos) con el backend una vez, y apagarlo.
+
+No se comparan conteos con el backend (decisión del 2026-11-27).
 
 Sin script de exportación.
 
-**Nota sobre vender la app a otras consultoras** (idea mencionada, no en curso): el modelo local primero **no lo impide**, porque cada usuaria tendría sus datos en su iPhone, sin servidor que mantener. Requeriría cuenta de desarrollador de pago (App Store) y revisar los términos de uso de Natura sobre automatizar su sitio. El backend multiusuario que existía era la otra vía; queda archivado como referencia.
+**Nota sobre vender la app a otras consultoras** (idea mencionada, no en curso): el modelo local primero **no lo impide**, porque cada usuaria tendría sus datos en su iPhone, sin servidor que mantener. Requeriría cuenta de desarrollador de pago (App Store) y revisar los términos de uso de Natura sobre automatizar su sitio. El backend multiusuario que existía era la otra vía; queda como referencia.
 
 ## 7.1 Catálogo, historial y stock inicial (decisiones 2026-11-27)
 
@@ -255,7 +256,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | M4 ✖ | OCR local | **Descartada** (2026-11-27): la boleta trae lo mismo que el Excel del pedido, que la app baja sola al importar. Ver §8.3 |
 | M5 ✅ | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
 | M6 ✅ | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
-| M7 ✅ | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; se archiva el repo `mynatura`; se actualizan `CLAUDE.md` y `ios-app-design.md` |
+| M7 ✅ | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; el repo `mynatura` queda tal cual; se actualizan `CLAUDE.md` y `ios-app-design.md` |
 | M8 | Pedido Natura (después) | `natura-order-placement.md` con el flujo GSP, directo desde la app |
 
 ---
@@ -363,7 +364,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 - **Info.plist:** sin red local ni ATS, sin refresco en segundo plano (`BGTaskScheduler`) y sin prellenado de login.
 - **Quedan sin uso**, para no forzar una migración de SwiftData: los modelos `PendingMutation` y `DatasetSyncState`, los campos `syncState` y los de OCR. Se pueden quitar más adelante con un esquema versionado.
 - **Docs:** `CLAUDE.md`, `README.md` e `ios-app-design.md` (secciones de backend y sync marcadas como obsoletas).
-- **Pendiente, a confirmar:** archivar el repo `mynatura` en GitHub.
+- **El repo `mynatura` no se toca** (ni se archiva ni se compara con él). Lo que quedó abierto de M7 está en `pending.md` §0.
 
 ## 9. Riesgos
 

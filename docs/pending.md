@@ -2,13 +2,32 @@
 
 > Lista viva de lo que quedó abierto. Al cerrar algo, se borra de aquí y se marca en su documento
 > (`voice-interaction-proposal.md` §9, `natura-order-placement.md` §9, `ios-app-design.md` §11).
-> Última revisión: 2026-11-26.
+> Última revisión: 2026-11-27.
 
 ---
 
-## 0. Arquitectura
+## 0. Arquitectura: app local primero (`local-first-migration.md`)
 
-- **Decidido (2026-11-26): app local primero, sin backend propio.** Plan en `local-first-migration.md` (etapas M1–M8), incluye costo cero para regalos. Mientras dure la migración, el backend sigue funcionando.
+Hecho: M1 reglas de costo · M2 store local · M3 Natura directo · M5 respaldo y Keychain · M6 cuenta, ciclo y ofertas · M7 retiro del backend. M4 (OCR de boleta) descartada. M8 (pedido Natura) queda para después (§2 de este archivo).
+El repo `mynatura` queda tal cual: no se modifica, no se archiva y no se comparan datos con él.
+
+### Pendiente de M7 (retiro)
+- **Limpiar el esquema de SwiftData** con un `VersionedSchema` + `SchemaMigrationPlan`, probándolo en el iPhone sobre una instalación con datos. Hoy quedan sin uso, para no forzar una migración:
+  - modelos `PendingMutation` y `DatasetSyncState`;
+  - campos `syncStateRaw` (productos, clientes, pedidos, ventas, líneas), `LocalSale.serverId` y `errorMessage`, `InventoryEventRecord.isLocal`;
+  - campos de OCR: `NaturaOrder.ocrStatusRaw` y `ocrProcessedAt`, `NaturaOrderLine.proposedSuggestedPesos` y `proposedReceivedQuantity`;
+  - `SellerSettings.issueStrategyRaw` y `localInventoryAdoptedAt`.
+- **Core:** quitar junto con lo anterior `MutationType`, `MutationStatus`, `SyncQueue`, `LocalID.references/rewrite` y `Dataset`/`DatasetSyncStatus`, con sus tests (`SalesAndSyncTests`).
+- **`SessionSummary`** hace de perfil local: renombrarlo (p. ej. `LocalProfile`) en la misma migración.
+- **Documentos con referencias al backend:**
+  - `ios-app-design.md`: las secciones de backend y sync están marcadas como obsoletas, no reescritas (§2, §4.1, §6, §7, §8, §9, §11, §13). Falta reducirlo a lo vigente;
+  - `unified-assistant-proposal.md` (§6, "todo vía backend") y `natura-order-placement.md`: pasar a "directo desde la app".
+- **CI:** cuando termine la regla temporal de CI mínimo, volver a activar los tests (Core en Linux; Natura y Persistence en macOS). Varios tests escritos en M5–M6 no han corrido nunca.
+- **Verificar en el iPhone:**
+  - instalar sobre la versión anterior: los datos se conservan (mismo `sellerId`), la cola antigua se descarta y no quedan íconos de "sin sincronizar";
+  - instalación nueva: abre directo, sin login, y crea un perfil local;
+  - el código de consultora aparece en Ajustes después de importar;
+  - "Borrar datos del iPhone" deja la app como recién instalada y borra la contraseña guardada.
 
 ## 1. Voz (`voice-interaction-proposal.md`)
 
@@ -35,7 +54,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
   - modo continuo en Recepción.
   
   Sumar ahí el registro **local** y opcional de frases no entendidas.
-- **Fecha de cierre del ciclo** en "¿Cuándo cierra el ciclo?": hoy se responde con el último ciclo registrado. Se resuelve con el punto "Ciclo vigente" de §2.
+- **Fecha de cierre del ciclo** en "¿Cuándo cierra el ciclo?": hoy se responde con el último ciclo registrado. El ciclo vigente con fechas ya se guarda al importar (M3/M6, `SellerSettings.currentCycleEnd`): falta usarlo en la respuesta de voz.
 
 ### Límites conocidos (a revisar con frases reales)
 - "Kaiak completo y Ekos completo" dicho de corrido queda como un solo producto. Con una coma o una pausa se separa.
@@ -67,9 +86,7 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 - **Captura de endpoints (la hace la consultora):** recorrido de §4.2 en minegocio con DevTools, guardando **Save all as HAR (sanitized)** fuera del repo, y **cancelar el pedido antes de cerrarlo**. De ahí salen rutas y DTOs para §5.2 (solo formas, sin valores). Incluye:
   - paso 0: de dónde sale "Ciclo Actual" en el home (HTML o XHR) y qué muestra el ⓘ;
   - pasos 17–19: ids del API de productos de la revista (`campaign_id`, `brochure_id`, `feed_id`), si trae puntos y ofertas, y el checkout por WhatsApp.
-- ~~Login de GSP sin navegador~~: **verificado** (`natura:probe-gsp-login`, 2026-11-26) con el `sso_token`; código en `natura-gsp-auth.ts` del backend. Siguiente: endpoints de ciclo actual (`consultantSection`), cuenta (`mis-cuentas` + crédito) y ofertas (`unified-assistant-proposal.md` §6.5, etapas U5–U6).
-- **Ciclo vigente sin GSP:** leer `var query_cycle = [AAAACC]` del HTML del home (ya disponible con la sesión del import).
-- **Ciclo vigente:** que el backend lea número y fechas del ciclo desde el home en cada login y los guarde por consultora. Lo usan la revista, el borrador y la respuesta de voz del ciclo.
+- ~~Login de GSP sin navegador, ciclo vigente, cuenta y ofertas~~: **hechos en la app** (M3 y M6), sin backend.
 - **Etapas 1–6 de §9:**
   1. revista y catálogo para compartir;
   2. borrador local con barra de puntos;
@@ -83,5 +100,4 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 
 ## 3. Otros
 
-- La tabla de estado de `ios-app-design.md` §11 tiene sus propios pendientes (p. ej. la base y las migraciones del backend en el PostgreSQL de Windows). Revisarlos allí antes de las pruebas en el iPhone.
 - **Pruebas en el iPhone:** se hacen al terminar todas las etapas, siguiendo el plan acordado. Los puntos de "Verificar en el iPhone" de arriba se suman a esa pasada.
