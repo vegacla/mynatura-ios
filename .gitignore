@@ -20,3 +20,5 @@ Thumbs.db
 # Capturas de red (HAR): traen cookies y datos personales, nunca se versionan
 docs/har/
 *.har
+docs/xlsx/
+*.xlsx

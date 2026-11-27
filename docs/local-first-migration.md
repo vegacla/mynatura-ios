@@ -216,10 +216,29 @@ Sin script de exportación.
 1. Al importar el historial, cada línea entregada entra como lote **recibido** con su costo pagado. El stock teórico queda en **todo lo comprado**.
 2. Opción **"Agregar inventario actual"**: la consultora ingresa (o escanea) cuánto tiene hoy de cada producto.
 3. **La diferencia** (comprado − contado) se registra como **ventas previas**: salidas que consumen lotes **con FIFO** (la primera vez, sin importar el método elegido). Así lo que queda en stock son los lotes más recientes, con su costo real.
-4. Las ventas previas **no tienen precio conocido**. Quedan como un documento propio ("Ventas previas al uso de la app"), **fuera del reporte de ganancias**, pero visibles en el kardex.
+4. Las ventas previas se valorizan con el **precio sugerido de cada lote** (Excel del pedido, ver abajo) como ingreso **estimado**. Quedan como un documento propio ("Ventas previas al uso de la app"), en un bloque aparte del reporte de Ganancias, y visibles en el kardex.
 5. Después de esa primera vez, los conteos son conciliaciones normales (merma según el método).
 
 **Pedidos nuevos** (desde el import siguiente): entran pendientes de recepción, como hoy.
+
+**Fuente de cada línea: el Excel del pedido** (verificado el 2026-11-27, disponible en **todos** los pedidos).
+- `GET https://minegocio.natura.cl/pedidos/order-report/{number}` (botón "Descarga información de tu pedido"; `{number}` es el número largo del pedido) devuelve un XLSX.
+- **Encabezado:** consultora (nombre y código), pedido, ciclo (`CC/AAAA`) y fecha.
+- **Una fila por línea:** `Cant.`, `Código`, `Descriptions`, `Marca`, **`Precio revista (uni.)`** (precio sugerido de venta), `Precio revista (total)`, **`Precio CB (total)`** (costo de la línea), `Ganancia (total)`.
+- **Al final:** totales por marca (AVON / C&E, NATURA) y `TOTALES`.
+- **Reglas:**
+  - costo unitario = `Precio CB (total)` / `Cant.`; precio sugerido = `Precio revista (uni.)`;
+  - **excluir `TASA DE SERVICIO`** (código `1`, todo en 0): no es producto y se confundiría con un gratis;
+  - las **promociones** traen costo = sugerido (ganancia 0): son compras normales;
+  - una línea con costo 0 y sugerido > 0 es **gratis de Natura** con su precio sugerido conocido.
+- **Lectura en iOS:** el XLSX es un ZIP con CRC inválidos (`unzip` los marca): un lector mínimo propio que **no valida CRC**, descompresión con el framework `Compression` (deflate) y `XMLParser` para `xl/worksheets/sheet1.xml` (celdas `t="str"`, sin `sharedStrings`). Sin librerías externas.
+- **Prioridad de fuentes:**
+  1. Excel del pedido (costo + sugerido; también para el historial);
+  2. HTML de líneas (`/pedidos/items/…`, lo que usa hoy el backend), como respaldo del costo;
+  3. revista del ciclo, solo si sigue en línea;
+  4. OCR de la boleta impresa.
+- **Ventas previas** ("Agregar inventario actual"): cada lote guarda el sugerido de su línea, y las unidades que salen con FIFO toman **ese** precio como **ingreso estimado**. Se muestran en un bloque aparte de Ganancias ("Ventas previas, estimadas al precio sugerido"), sin mezclarse con las ventas reales.
+- Los archivos descargados para análisis van en `docs/xlsx/` (en `.gitignore`: traen datos personales).
 
 **Consecuencia para M2:** el "saldo inicial" que convertía en lotes el stock bajado del backend queda **desactivado** y se reemplaza por esto en M3.
 
