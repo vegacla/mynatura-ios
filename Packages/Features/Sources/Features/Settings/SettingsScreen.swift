@@ -28,9 +28,8 @@ public struct SettingsScreen: View {
                     IssueStrategySection(sellerId: sellerId, isOffline: !sync.connectivity.isOnline)
                     NaturaImportSection(sellerId: sellerId)
                     Section("Historial y reportes") {
-                        NavigationLink("Historial de importaciones") { ImportRunsScreen() }
                         NavigationLink("Historial de ventas") { SalesHistoryScreen(sellerId: sellerId) }
-                        NavigationLink("Reporte de margen") { MarginReportScreen(sellerId: sellerId) }
+                        NavigationLink("Ganancias") { MarginReportScreen(sellerId: sellerId) }
                     }
                     DatasetsSection(sellerId: sellerId, isOffline: !sync.connectivity.isOnline)
                     Section {

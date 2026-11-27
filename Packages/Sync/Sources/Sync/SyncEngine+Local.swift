@@ -17,11 +17,8 @@ extension SyncEngine {
         return created
     }
 
-    /// true cuando el inventario ya es local: el pull deja de pisar stock, ventas, clientes y pedidos de clientes.
-    public func isLocalInventory(sellerId: String) -> Bool {
-        fetchAll(FetchDescriptor<SellerSettings>(predicate: #Predicate { $0.sellerId == sellerId })).first?
-            .localInventoryAdoptedAt != nil
-    }
+    /// Desde M3 el inventario y todos los datos son locales: el backend ya no se lee ni se escribe.
+    public func isLocalInventory(sellerId: String) -> Bool { true }
 
     public func costingMethod(sellerId: String) -> CostingMethod {
         fetchAll(FetchDescriptor<SellerSettings>(predicate: #Predicate { $0.sellerId == sellerId })).first?
@@ -40,7 +37,13 @@ extension SyncEngine {
     public func adoptLocalInventoryIfNeeded(sellerId: String) {
         let current = settings(sellerId: sellerId)
         guard current.localInventoryAdoptedAt == nil else { return }
-        // Solo si el stock se bajó bien alguna vez: si no, quedaría un inventario local vacío.
+        // M3: ya no se convierte el stock del backend en lotes; el inventario sale de la importación directa
+        // y de "Agregar inventario actual". Solo se marca el modo local y se vacía la cola.
+        for mutation in pendingMutations(sellerId: sellerId) { context.delete(mutation) }
+        current.localInventoryAdoptedAt = .now
+        save()
+        if current.localInventoryAdoptedAt != nil { return }
+        // (Código de M2 que convertía el stock del backend en saldo inicial; ya no se alcanza.)
         let stockKey = DatasetSyncState.key(sellerId: sellerId, dataset: .stock)
         guard fetchAll(FetchDescriptor<DatasetSyncState>(predicate: #Predicate { $0.key == stockKey })).first?
             .lastSyncedAt != nil else { return }
@@ -90,11 +93,12 @@ extension SyncEngine {
     /// Agrega stock como lote nuevo y recalcula el stock del producto.
     @discardableResult
     func addLot(sellerId: String, productId: String, quantity: Int, unitCost: Money?, source: CostSource,
-                origin: LotOrigin, naturaOrderLineId: String? = nil, note: String? = nil, receivedAt: Date = .now) -> InventoryLotRecord? {
+                origin: LotOrigin, naturaOrderLineId: String? = nil, note: String? = nil, receivedAt: Date = .now,
+                suggestedPesos: Int? = nil) -> InventoryLotRecord? {
         guard quantity > 0 else { return nil }
         let record = InventoryLotRecord(sellerId: sellerId, productId: productId, receivedAt: receivedAt, quantity: quantity,
                                         unitCost: unitCost, source: source, origin: origin,
-                                        naturaOrderLineId: naturaOrderLineId, note: note)
+                                        naturaOrderLineId: naturaOrderLineId, note: note, suggestedPesos: suggestedPesos)
         context.insert(record)
         if let product = product(id: productId), let cost = unitCost, cost.pesos > 0,
            source == .purchased || source == .manual {
@@ -134,10 +138,11 @@ extension SyncEngine {
     }
 
     /// Evento del kardex (local, definitivo).
-    func addEvent(sellerId: String, productId: String, kind: InventoryEventKind, quantity: Int, note: String?) {
+    func addEvent(sellerId: String, productId: String, kind: InventoryEventKind, quantity: Int, note: String?,
+                  occurredAt: Date = .now) {
         context.insert(InventoryEventRecord(
             id: UUID().uuidString, sellerId: sellerId, sellerProductId: productId,
-            kind: kind, quantity: quantity, note: note, occurredAt: .now, isLocal: false))
+            kind: kind, quantity: quantity, note: note, occurredAt: occurredAt, isLocal: false))
     }
 
     /// Completa el costo de un lote desconocido y revaloriza las salidas que lo usaron.
@@ -173,11 +178,11 @@ extension SyncEngine {
         return Int((Double(total) / Double(quantity)).rounded())
     }
 
-    /// Lote de una línea de pedido Natura, clasificado por su valor unitario (sin valor o 0 ⇒ gratis).
+    /// Lote de una línea de pedido Natura por su valor unitario: > 0 comprado, 0 gratis, sin valor desconocido.
     func lotClassification(for line: NaturaOrderLine) -> LotClassifier.Classification {
-        guard let pesos = line.purchasePesos, pesos > 0 else {
-            return LotClassifier.Classification(source: .free, unitCost: .zero)
-        }
-        return LotClassifier.Classification(source: .purchased, unitCost: Money(pesos: pesos))
+        guard let pesos = line.purchasePesos else { return LotClassifier.Classification(source: .unknown, unitCost: nil) }
+        return pesos > 0
+            ? LotClassifier.Classification(source: .purchased, unitCost: Money(pesos: pesos))
+            : LotClassifier.Classification(source: .free, unitCost: .zero)
     }
 }

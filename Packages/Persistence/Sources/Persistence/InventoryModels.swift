@@ -18,9 +18,12 @@ public final class InventoryLotRecord {
     public var originRaw: String
     public var naturaOrderLineId: String?
     public var note: String?
+    /// Precio sugerido de venta de la línea (Excel del pedido): valoriza las ventas previas.
+    public var suggestedPesos: Int?
 
     public init(id: String = UUID().uuidString, sellerId: String, productId: String, receivedAt: Date, quantity: Int,
-                unitCost: Money?, source: CostSource, origin: LotOrigin, naturaOrderLineId: String? = nil, note: String? = nil) {
+                unitCost: Money?, source: CostSource, origin: LotOrigin, naturaOrderLineId: String? = nil, note: String? = nil,
+                suggestedPesos: Int? = nil) {
         self.id = id
         self.sellerId = sellerId
         self.productId = productId
@@ -32,6 +35,7 @@ public final class InventoryLotRecord {
         self.originRaw = origin.rawValue
         self.naturaOrderLineId = naturaOrderLineId
         self.note = note
+        self.suggestedPesos = suggestedPesos
     }
 
     public var source: CostSource {

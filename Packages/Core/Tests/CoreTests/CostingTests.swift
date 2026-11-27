@@ -159,6 +159,18 @@ struct CostingTests {
         #expect(report.isComplete)
     }
 
+    @Test func priorSalesStayOutOfProfit() {
+        let fifo = CostingEngine.consume(2, from: example, method: .fifo)
+        let prior = OutflowLine(kind: .priorSales, productId: "p", quantity: 2, unitPrice: Money(pesos: 5990), allocations: fifo.allocations)
+        let report = ProfitReport.build([prior])
+        #expect(report.revenue == .zero)
+        #expect(report.profit == .zero)
+        #expect(report.priorSalesEstimatedRevenue == Money(pesos: 11980))
+        #expect(report.priorSalesCost == Money(pesos: 6000))
+        #expect(report.priorSalesUnits == 2)
+        #expect(report.unitsAtReferenceCost == 0)
+    }
+
     @Test func costingMethodLabelsAndBridge() {
         #expect(CostingMethod(.fifo) == .fifo)
         #expect(CostingMethod(.lifo) == .lifo)

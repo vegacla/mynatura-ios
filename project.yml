@@ -17,6 +17,8 @@ packages:
     path: Packages/DesignSystem
   Features:
     path: Packages/Features
+  Natura:
+    path: Packages/Natura
 targets:
   MyNatura:
     type: application
@@ -30,6 +32,7 @@ targets:
       - package: Sync
       - package: DesignSystem
       - package: Features
+      - package: Natura
     info:
       path: MyNatura/Resources/Info.plist
       properties:

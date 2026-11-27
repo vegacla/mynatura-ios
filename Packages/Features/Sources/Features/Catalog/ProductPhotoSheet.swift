@@ -35,7 +35,6 @@ struct ProductPhotoSheet: View {
     @State private var countNote = ""
     @State private var choosingOrder = false
     @State private var newOrder: NewOrderRequest?
-    @State private var creating: CreateRequest?
     @State private var shelfMode = false
     @State private var shelfRows: [ShelfRow] = []
     @State private var speech = SpeechCaptureService()
@@ -52,12 +51,6 @@ struct ProductPhotoSheet: View {
     struct NewOrderRequest: Identifiable {
         let productId: String
         var id: String { productId }
-    }
-
-    struct CreateRequest: Identifiable {
-        let sku: String
-        let name: String
-        var id: String { sku + "|" + name }
     }
 
     init(sellerId: String) {
@@ -161,12 +154,6 @@ struct ProductPhotoSheet: View {
             }
             .task { await VoiceModelWarmup.prepare(speech, sellerId: sellerId, context: context) }
             .onDisappear { speech.cancel() }
-            .sheet(item: $creating) { request in
-                QuickProductSheet(sellerId: sellerId, initialSku: request.sku, initialName: request.name) { id in
-                    productId = id
-                    message = ("Producto creado.", false)
-                }
-            }
         }
     }
 
@@ -390,15 +377,10 @@ struct ProductPhotoSheet: View {
         case .notFound:
             Section {
                 Text(result.labelName == nil && result.readCodes.isEmpty && !result.unknownBarcodes.isEmpty
-                     ? "No conozco este código. Toma una foto de la etiqueta para identificarlo, o créalo."
-                     : "No encontré este producto en tu catálogo.")
-                Button {
-                    creating = CreateRequest(sku: result.readCodes.first ?? "", name: result.labelName ?? "")
-                } label: {
-                    Label("Crear producto", systemImage: "plus.circle")
-                }
+                     ? "No conozco este código. Toma una foto de la etiqueta para identificar el producto."
+                     : "No está en tus pedidos ni en el catálogo del ciclo.")
             } footer: {
-                Text("Se prellena con el código y el nombre leídos; puedes corregirlos.")
+                Text("Los productos vienen de tus pedidos y del catálogo del ciclo (Ajustes › Natura).")
             }
         }
     }

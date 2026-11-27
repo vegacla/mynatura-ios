@@ -29,7 +29,6 @@ struct CustomerOrderEditor: View {
     @State private var note = ""
     @State private var lines: [CustomerOrderLineSnapshot] = []
     @State private var productQuery = ""
-    @State private var quickName = ""
     @State private var errorMessage: String?
     @State private var savedMessage: String?
     @State private var showVoice = false
@@ -183,10 +182,8 @@ struct CustomerOrderEditor: View {
                     }
                 }
                 if matches.isEmpty {
-                    Text("No está en tu catálogo. Créalo rápido:").font(.caption).foregroundStyle(.secondary)
-                    TextField("Nombre del producto", text: $quickName)
-                    Button("Crear SKU \(Normalize.naturaSku(query)) y agregar") { quickCreate(sku: query) }
-                        .disabled(quickName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Text("No está en tus pedidos ni en el catálogo del ciclo. Actualiza desde Natura en Ajustes.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
@@ -310,19 +307,6 @@ struct CustomerOrderEditor: View {
         }
         productQuery = ""
         Haptics.tap()
-    }
-
-    private func quickCreate(sku: String) {
-        switch sync.quickCreateProduct(sellerId: sellerId, sku: sku, name: quickName) {
-        case .success(let id):
-            if let product = products.first(where: { $0.id == id }) ?? (try? context.fetch(
-                FetchDescriptor<CatalogProduct>(predicate: #Predicate { $0.id == id })))?.first {
-                addLine(product)
-            }
-            quickName = ""
-        case .failure(let error):
-            errorMessage = error.message
-        }
     }
 
     private func save() {

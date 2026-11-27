@@ -37,6 +37,10 @@ jobs:
       - name: Xcode version
         run: xcodebuild -version
 
+      - name: swift test (Natura, macOS)
+        working-directory: Packages/Natura
+        run: swift test
+
       - name: Install XcodeGen
         run: brew install xcodegen
 

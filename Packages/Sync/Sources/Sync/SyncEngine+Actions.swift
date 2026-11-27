@@ -245,7 +245,8 @@ extension SyncEngine {
                     let classification = lotClassification(for: line)
                     addLot(sellerId: sellerId, productId: product.id, quantity: delta, unitCost: classification.unitCost,
                            source: classification.source, origin: .naturaLine, naturaOrderLineId: lineId,
-                           note: "Pedido \(order.orderNumber)", receivedAt: order.deliveredAt ?? .now)
+                           note: "Pedido \(order.orderNumber)", receivedAt: order.deliveredAt ?? .now,
+                           suggestedPesos: line.suggestedPesos ?? suggestedPesos)
                 }
             } else if delta < 0 {
                 // Primero se descuenta del lote de esta línea; lo que falte, según el método.
@@ -330,59 +331,22 @@ extension SyncEngine {
         return nil
     }
 
-    /// Vuelve a descargar el detalle de un pedido Natura.
-    public func refreshNaturaOrder(sellerId: String, orderId: String) async {
-        guard connectivity.isOnline, case .success(let response) = await fetch(.naturaOrder(id: orderId)) else { return }
-        applyNaturaOrderDetail(response.order, sellerId: sellerId)
-        save()
-    }
+    /// Los pedidos Natura vienen de la importación directa: no hay detalle que descargar del backend.
+    public func refreshNaturaOrder(sellerId: String, orderId: String) async {}
 
-    /// Sube la foto de la boleta al OCR del backend (solo online) y descarga las propuestas.
+    /// El OCR de la boleta pasa al iPhone en M4; mientras tanto no se usa el del backend.
     public func uploadReceipt(sellerId: String, orderId: String, jpeg: Data) async -> Result<String, ActionError> {
-        guard connectivity.isOnline else { return .failure(ActionError("El OCR necesita conexión.")) }
-        switch await fetch(.receiptOcr(orderId: orderId, jpeg: jpeg)) {
-        case .success(let response):
-            await refreshNaturaOrder(sellerId: sellerId, orderId: orderId)
-            let ocr = response.ocr
-            if ocr.status != "succeeded" {
-                return .failure(ActionError("No se pudo leer la boleta. Intenta con otra foto, más nítida y derecha."))
-            }
-            var summary = "Leídas \(ocr.matchedLineCount) línea(s) del pedido."
-            if !ocr.unmatchedSkus.isEmpty {
-                summary += " SKU sin coincidencia: \(ocr.unmatchedSkus.joined(separator: ", "))."
-            }
-            return .success(summary)
-        case .failure(let error):
-            handle(error)
-            return .failure(ActionError(error.userMessage))
-        }
+        .failure(ActionError("La lectura de la boleta se está pasando al iPhone. Mientras tanto, revisa las líneas a mano."))
     }
 
-    // MARK: - Natura (etapa 7, solo online)
+    // MARK: - Natura (directo, M3)
 
-    /// Importa pedidos entregados. Las credenciales Natura no se guardan.
+    /// Compatibilidad con la pantalla anterior: importa directo desde Natura.
     public func importNaturaOrders(sellerId: String, customerCode: String, password: String) async -> Result<String, ActionError> {
-        guard connectivity.isOnline else { return .failure(ActionError("Necesitas conexión para importar desde Natura.")) }
-        switch await fetch(.importDeliveredOrders(customerCode: customerCode.trimmingCharacters(in: .whitespaces), password: password)) {
-        case .success(let response):
-            await pullAll(sellerId: sellerId)
-            return .success("Importados \(response.run.importedOrderCount) pedido(s) y \(response.run.importedLineCount) línea(s).")
-        case .failure(let error):
-            handle(error)
-            return .failure(ActionError(error.userMessage))
-        }
+        await importFromNatura(sellerId: sellerId, customerCode: customerCode, password: password) { _ in }
     }
 
-    public func importRuns() async -> Result<[NaturaImportRunDTO], ActionError> {
-        switch await fetch(.naturaImportRuns) {
-        case .success(let response): return .success(response.runs)
-        case .failure(let error):
-            handle(error)
-            return .failure(ActionError(error.userMessage))
-        }
-    }
-
-    // MARK: - Clientes (etapa 8)
+        // MARK: - Clientes (etapa 8)
 
     /// Crea o edita un cliente en el iPhone. Devuelve su id.
     public func saveCustomer(sellerId: String, customerId: String?, name: String, rut: String?, phone: String?,

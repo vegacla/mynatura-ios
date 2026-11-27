@@ -245,6 +245,8 @@ public enum OutflowKind: String, Sendable, Codable {
     case sale
     /// Obsequio a terceros: precio 0, su costo es pérdida.
     case gift
+    /// Ventas previas al uso de la app (diferencia del inventario inicial): ingreso **estimado** al precio sugerido.
+    case priorSales
 }
 
 public enum OutflowError: Error, Equatable, Sendable {
@@ -308,6 +310,10 @@ public struct ProfitReport: Equatable, Sendable {
     public var unitsWithoutKnownCost = 0
     /// Líneas con costo pendiente (lote desconocido).
     public var linesWithPendingCost = 0
+    /// Ventas previas al uso de la app: aparte, no suman a la ganancia.
+    public var priorSalesEstimatedRevenue = Money.zero
+    public var priorSalesCost = Money.zero
+    public var priorSalesUnits = 0
 
     public var grossMargin: Money { revenue - costOfSales }
     public var profit: Money { grossMargin - giftLoss }
@@ -323,6 +329,11 @@ public struct ProfitReport: Equatable, Sendable {
                 report.costOfSales = report.costOfSales + line.knownCost
             case .gift:
                 report.giftLoss = report.giftLoss + line.knownCost
+            case .priorSales:
+                report.priorSalesEstimatedRevenue = report.priorSalesEstimatedRevenue + line.revenue
+                report.priorSalesCost = report.priorSalesCost + line.knownCost
+                report.priorSalesUnits += line.quantity
+                continue
             }
             for allocation in line.allocations {
                 switch allocation.basis {

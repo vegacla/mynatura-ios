@@ -11,8 +11,9 @@ let package = Package(
         .package(path: "../Core"),
         .package(path: "../APIClient"),
         .package(path: "../Persistence"),
+        .package(path: "../Natura"),
     ],
     targets: [
-        .target(name: "Sync", dependencies: ["Core", "APIClient", "Persistence"]),
+        .target(name: "Sync", dependencies: ["Core", "APIClient", "Persistence", "Natura"]),
     ]
 )

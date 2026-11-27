@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada (2026-11-26). **M1 y M2 implementadas** (sin probar en iPhone); M3–M8 pendientes.
+> **Estado:** decisión tomada (2026-11-26). **M1, M2 y M3 implementadas** (sin probar en iPhone); M4–M8 pendientes.
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 
@@ -250,7 +250,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 |---|---|---|
 | M1 ✅ | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
 | M2 ✅ | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
-| M3 | Natura directo | Paquete `Natura`: login (minegocio + GSP) + import de **todos** los pedidos entregados (JSON + HTML) como lotes recibidos + catálogo del ciclo actual (`cardSection`, categorías) sin repetir + revista; "Agregar inventario actual" (diferencia = ventas previas, FIFO); sin productos manuales; sin leer el backend |
+| M3 ✅ | Natura directo | Paquete `Natura`: login (minegocio + GSP) + import de **todos** los pedidos entregados (JSON + HTML) como lotes recibidos + catálogo del ciclo actual (`cardSection`, categorías) sin repetir + revista; "Agregar inventario actual" (diferencia = ventas previas, FIFO); sin productos manuales; sin leer el backend |
 | M4 | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
 | M5 | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
 | M6 | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
@@ -282,6 +282,30 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
   - método de costeo en Ajustes;
   - las consultas por voz cuentan solo ventas.
 - **Sin tests de `Sync` en CI** (solo compilación): las reglas están en `Core` (M1, con tests); la integración se verifica en el iPhone.
+
+## 8.2 Implementación M3
+
+- **Paquete `Natura`** (iOS/macOS, tests en macOS en CI):
+  - `CryptoJSAES` (CommonCrypto + MD5, vector verificado contra el algoritmo del backend);
+  - `ZipReader` (sin validar CRC, deflate con `Compression`);
+  - `NaturaClient` (actor):
+    - login: la URL de login con su `client_id` sale de la redirección de `/ingreso/cl`, y la API y la clave del bundle, ambas en vivo;
+    - signin y `natura-callback` con redirecciones a mano hasta `wcmn_session`;
+    - pedidos (todas las páginas);
+    - Excel del pedido (prueba con `orderNumber` y luego con `id`; si no llega un XLSX, HTML de líneas);
+    - ciclo del home;
+    - GSP: `recover-session`, cadena del `xAppToken`, `consultantSection`, categorías y `cardSection` por categoría.
+- **Core:** parsers de usuario y errores de credenciales, bundle de GSP, pedidos, líneas HTML, Excel del pedido (excluye la tasa de servicio) y `query_cycle`; `OutflowKind.priorSales` y su bloque aparte en el reporte. Tests en Linux.
+- **Importación** (`SyncEngine.importFromNatura`):
+  - la primera vez **borra lo bajado del backend** (pedidos, líneas, lotes, stock, kardex, cola) y conserva productos (por SKU), clientes, pedidos de clientes y ventas;
+  - trae solo los pedidos entregados nuevos;
+  - antes del inventario inicial, cada línea entra **recibida** con su lote (costo y sugerido del Excel), con el pedido cerrado; después, los pedidos nuevos quedan pendientes de recepción;
+  - guarda el ciclo vigente con sus fechas y el catálogo del ciclo (categoría = pestaña de GSP, precio de compra y venta del ciclo, puntos, imagen); lo que nunca se pidió entra al catálogo sin stock;
+  - si GSP falla, los pedidos igual quedan importados.
+- **"Agregar inventario actual"** (Ajustes › Natura, una vez): conteo por escáner (+1 por lectura) o a mano. La diferencia sale con FIFO como **ventas previas** (`LocalSale.kind = .priorSales`, ingreso estimado al sugerido de cada lote) y lo contado de más entra al último costo. Desde ahí, recepción normal.
+- **Sin backend:** el pull no lee nada, el saldo inicial de M2 quedó desactivado y el OCR del servidor muestra un aviso hasta M4. La sesión de la app (login) sigue hasta M7.
+- **Sin productos manuales:** se quitaron el "+" de Productos, "Crear producto" en la foto y la creación rápida en el pedido de cliente.
+- **Por verificar en el iPhone:** el login directo (Akamai desde la red móvil), el parámetro de la ruta del Excel, el número de categorías y páginas del ciclo y los tiempos de la primera importación.
 
 ## 9. Riesgos
 

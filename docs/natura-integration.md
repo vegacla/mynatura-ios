@@ -23,6 +23,7 @@
 ## 1. Login (natura-auth → minegocio)
 
 ### 1.1 Configuración (en vivo)
+0. **Descubrir la URL de login (sin versionar el `client_id`):** `GET https://minegocio.natura.cl/ingreso/cl?return_url=` responde **307** a `https://natura-auth.prd.naturacloud.com/?client_id=…&country=cl&language=es&company=natura&redirect_uri=https://minegocio.natura.cl/natura-callback` (verificado el 2026-11-27). La `x-api-key` es **la misma** que la de GSP.
 1. `GET <URL de login>`: la página de natura-auth con `?client_id=…&country=cl&language=es&company=natura&redirect_uri=https://minegocio.natura.cl/natura-callback?return_url=`. El `client_id` de minegocio es público, pero no se versiona aquí; está en la configuración del backend (`NATURA_LOGIN_URL`).
 2. Del HTML se toma el bundle `src="/assets/index-<hash>.js"` y del bundle:
    - `VITE_APP_API_DOMAIN:"…"` → `apiDomain` (incluye `/authentication-api`);

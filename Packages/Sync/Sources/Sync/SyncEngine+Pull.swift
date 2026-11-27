@@ -8,10 +8,8 @@ extension SyncEngine {
     /// Descarga todos los datasets (§7.4) y los aplica sin pisar entidades con cambios pendientes.
     public func pullAll(sellerId: String) async {
         guard !isPulling else { return }
-        if isLocalInventory(sellerId: sellerId) {
-            await pullNaturaOnly(sellerId: sellerId)
-            return
-        }
+        // M3: el backend ya no se lee. Los datos vienen de la importación directa desde Natura.
+        if isLocalInventory(sellerId: sellerId) { return }
         isPulling = true
         defer {
             isPulling = false

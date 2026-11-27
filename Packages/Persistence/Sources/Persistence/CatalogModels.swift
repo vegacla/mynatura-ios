@@ -16,6 +16,15 @@ public final class CatalogProduct {
     public var lastSuggestedSalePesos: Int?
     public var barcodes: [String]
     public var syncStateRaw: String
+    /// Categoría (pestaña del catálogo del ciclo en GSP); la última conocida.
+    public var category: String?
+    public var brand: String?
+    public var imageURL: String?
+    /// Último ciclo (AAAACC) en que apareció en el catálogo de Natura, con su precio de compra, de venta y puntos.
+    public var cycleCode: Int?
+    public var cyclePurchasePesos: Int?
+    public var cycleResalePesos: Int?
+    public var cyclePoints: Int?
 
     public init(id: String, sellerId: String, naturaSku: String, name: String, source: ProductSource,
                 isSellable: Bool, lastPurchasePesos: Int, lastSuggestedSalePesos: Int?, barcodes: [String],
@@ -77,6 +86,16 @@ public final class SellerSettings {
     public var costingMethodRaw: String?
     /// Cuándo el inventario pasó a ser local (lotes en el iPhone). nil = todavía se baja del backend.
     public var localInventoryAdoptedAt: Date?
+    /// Desde cuándo los datos vienen directo de Natura (M3). La primera importación limpia lo bajado del backend.
+    public var naturaDirectSince: Date?
+    /// "Agregar inventario actual" (una vez): antes, lo importado entra como recibido; después, pendiente de recepción.
+    public var initialInventoryAt: Date?
+    public var lastNaturaImportAt: Date?
+    public var lastNaturaImportSummary: String?
+    /// Ciclo vigente (AAAACC) y sus fechas, leídos de Natura.
+    public var currentCycleCode: Int?
+    public var currentCycleStart: Date?
+    public var currentCycleEnd: Date?
 
     public init(sellerId: String, issueStrategy: IssueStrategy) {
         self.sellerId = sellerId

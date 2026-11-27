@@ -15,7 +15,6 @@ public struct ProductsScreen: View {
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
     @State private var searchText = ""
-    @State private var creating = false
     @State private var path = NavigationPath()
     private let sellerId: String
 
@@ -65,13 +64,6 @@ public struct ProductsScreen: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     ProductPhotoButton(sellerId: sellerId)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { creating = true } label: { Image(systemName: "plus") }
-                        .accessibilityLabel("Producto nuevo")
-                }
-            }
-            .sheet(isPresented: $creating) {
-                QuickProductSheet(sellerId: sellerId) { id in path.append(CatalogRoute.product(id: id)) }
             }
             .navigationDestination(for: CatalogRoute.self) { route in
                 switch route {
@@ -108,6 +100,11 @@ struct ProductRow: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            if let category = product.category {
+                Text(product.cycleCode.map { "\(category) · \(CycleCode.label($0))" } ?? category)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 2)
     }
