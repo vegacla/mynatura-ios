@@ -3,7 +3,7 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Recibir por línea (§4.6): asistencia de faltantes y edición por línea.
 /// Solo consulta los productos y el stock de los SKU del pedido (no el catálogo completo).
@@ -24,7 +24,7 @@ struct ReceiveByLineScreen: View {
         ReceiveByLineProducts(order: orders.first, lines: lines, skus: Self.skuVariants(lines), sellerId: sellerId)
             .navigationTitle("Recibir por línea")
             .navigationBarTitleDisplayMode(.inline)
-            .syncStatusToolbar(sellerId: sellerId)
+            .mainToolbar(sellerId: sellerId)
     }
 
     /// SKU de las líneas tal cual y normalizados, para encontrar el producto aunque difiera el formato.
@@ -108,7 +108,7 @@ private struct ReceiveByLineList: View {
 
 /// Fila de línea compartida entre recepción por línea y por código (§10 ReceivingLineRow).
 struct ReceivingLineRow: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     let line: NaturaOrderLine
     let stock: Int?
     let isClosed: Bool
@@ -131,11 +131,6 @@ struct ReceivingLineRow: View {
                 Text("SKU \(line.naturaSku)")
                 Text("Stock \(stock ?? 0)")
                 if let purchase = line.purchasePesos { Text("Compra \(Money(pesos: purchase).formatted)") }
-                switch line.syncState {
-                case .pending: Image(systemName: "icloud.slash")
-                case .failed: Image(systemName: "exclamationmark.icloud.fill").foregroundStyle(StatusTone.danger.color)
-                case .synced: EmptyView()
-                }
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -170,7 +165,7 @@ struct ReceivingLineRow: View {
 
     private func save() {
         let price = salePrice.pesos > 0 ? salePrice.pesos : nil
-        if let error = sync.confirmReceivingLine(sellerId: sellerId, lineId: line.id, quantity: quantity, suggestedPesos: price) {
+        if let error = store.confirmReceivingLine(sellerId: sellerId, lineId: line.id, quantity: quantity, suggestedPesos: price) {
             errorMessage = error.message
             Haptics.error()
         } else {
@@ -182,7 +177,7 @@ struct ReceivingLineRow: View {
 
 /// Tarjeta "Asistencia de conciliación": aplica los faltantes al stock.
 private struct ShortageCard: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     let order: NaturaOrder
     let lines: [NaturaOrderLine]
     let sellerId: String
@@ -201,7 +196,7 @@ private struct ShortageCard: View {
             }
             .confirmationDialog("¿Aplicar faltantes al stock?", isPresented: $confirming, titleVisibility: .visible) {
                 Button("Aplicar") {
-                    if case .success(let count) = sync.applyShortages(sellerId: sellerId, orderId: order.id) {
+                    if case .success(let count) = store.applyShortages(sellerId: sellerId, orderId: order.id) {
                         message = "Creadas \(count) conciliación(es)."
                         Haptics.success()
                     }

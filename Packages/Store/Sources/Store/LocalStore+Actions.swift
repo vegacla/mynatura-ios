@@ -1,4 +1,3 @@
-import APIClient
 import Core
 import Foundation
 import Persistence
@@ -43,7 +42,7 @@ private func trimmedOrNil(_ text: String?) -> String? {
     return value
 }
 
-extension SyncEngine {
+extension LocalStore {
     func pricingReason(code: String?) -> PricingReason? {
         guard let code else { return nil }
         return fetchAll(FetchDescriptor<PricingReasonRecord>(predicate: #Predicate { $0.code == code })).first?.reason
@@ -112,41 +111,6 @@ extension SyncEngine {
         return .success(firstId ?? "")
     }
 
-    /// Revisar venta fallida (§7.5): reemplaza las líneas y la reenvía con el mismo clientMutationId.
-    public func resubmitSale(sellerId: String, saleId: String, lines: [SaleLineSnapshot]) -> ActionError? {
-        guard let sale = fetchAll(FetchDescriptor<LocalSale>(predicate: #Predicate { $0.id == saleId })).first,
-              let mutation = pendingMutations(sellerId: sellerId).first(where: { $0.type == .saleCreate && $0.entityKey == saleId })
-        else { return ActionError("La venta ya no está pendiente.") }
-        let kept = lines.filter { $0.quantity > 0 }
-        guard !kept.isEmpty else { return discard(mutation, sellerId: sellerId) }
-
-        for line in sale.lines { adjustStock(productId: line.sellerProductId, sellerId: sellerId, delta: line.quantity) }
-        removeLocalEvents(mutationId: mutation.id)
-        for line in kept {
-            adjustStock(productId: line.sellerProductId, sellerId: sellerId, delta: -line.quantity)
-            addLocalEvent(mutationId: mutation.id, sellerId: sellerId, productId: line.sellerProductId,
-                          kind: .sale, quantity: -line.quantity, note: sale.note ?? "Venta")
-        }
-        sale.lines = kept
-        sale.syncState = .pending
-        sale.errorMessage = nil
-        let input = CreateSaleInputDTO(
-            clientMutationId: saleId, occurredAt: sale.occurredAt.ISO8601Format(), customerId: sale.customerId, note: sale.note,
-            lines: kept.map {
-                CreateSaleLineInputDTO(sellerProductId: $0.sellerProductId, quantity: $0.quantity,
-                                       finalUnitPriceCents: $0.finalPesos, pricingReasonCode: $0.reasonCode,
-                                       pricingReasonNote: $0.reasonNote)
-            })
-        mutation.payload = PayloadCoding.encode(input)
-        mutation.relatedProductIds = Array(Set(kept.map(\.sellerProductId)))
-        mutation.status = .pending
-        mutation.retryCount = 0
-        mutation.nextAttemptAt = nil
-        mutation.lastErrorMessage = nil
-        save()
-        pushSoon(sellerId: sellerId)
-        return nil
-    }
 
     // MARK: - Inventario (local, M2)
 
@@ -205,13 +169,11 @@ extension SyncEngine {
         return .success(localId)
     }
 
-    /// Autocompletado del nombre desde el maestro Natura (solo online).
+    /// Autocompletado del nombre desde el catálogo local (pedidos y catálogo del ciclo).
     public func lookupMasterProductName(sku: String) async -> String? {
-        let normalized = Normalize.naturaSku(sku)
-        guard !normalized.isEmpty, connectivity.isOnline,
-              case .success(let response) = await fetch(.masterProductLookup(sku: normalized)), response.found
-        else { return nil }
-        return response.product?.name
+        let normalized = Normalize.naturaSku(sku).lowercased()
+        guard !normalized.isEmpty else { return nil }
+        return fetchAll(FetchDescriptor<CatalogProduct>()).first { Normalize.naturaSku($0.naturaSku).lowercased() == normalized }?.name
     }
 
     // MARK: - Recepción (etapa 6)
@@ -320,8 +282,6 @@ extension SyncEngine {
         return nil
     }
 
-    /// Los pedidos Natura vienen de la importación directa: no hay detalle que descargar del backend.
-    public func refreshNaturaOrder(sellerId: String, orderId: String) async {}
 
     // MARK: - Natura (directo, M3)
 
@@ -411,94 +371,5 @@ extension SyncEngine {
         case .success: return nil
         case .failure(let error): return error
         }
-    }
-
-    /// Los pedidos de clientes son locales: no hay nada que descargar.
-    public func refreshCustomerOrder(sellerId: String, orderId: String) async {}
-
-    // MARK: - Cola: reintentar / descartar (§4.8, etapa 9)
-
-    public func retry(_ mutation: PendingMutation, sellerId: String) {
-        mutation.status = .pending
-        mutation.retryCount = 0
-        mutation.nextAttemptAt = nil
-        mutation.lastErrorMessage = nil
-        let key = mutation.entityKey
-        switch mutation.type {
-        case .saleCreate?:
-            if let sale = fetchAll(FetchDescriptor<LocalSale>(predicate: #Predicate { $0.id == key })).first {
-                sale.syncState = .pending
-                sale.errorMessage = nil
-            }
-        case .receivingLineConfirm?: naturaLine(id: key)?.syncState = .pending
-        case .customerCreate?, .customerUpdate?:
-            fetchAll(FetchDescriptor<Customer>(predicate: #Predicate { $0.id == key })).first?.syncState = .pending
-        case .customerOrderCreate?, .customerOrderUpdate?:
-            fetchAll(FetchDescriptor<CustomerOrder>(predicate: #Predicate { $0.id == key })).first?.syncState = .pending
-        case .catalogBarcodeAdd?, .catalogProductQuick?: product(id: key)?.syncState = .pending
-        default: break
-        }
-        save()
-        pushSoon(sellerId: sellerId)
-    }
-
-    public func retryAllFailed(sellerId: String) {
-        for mutation in pendingMutations(sellerId: sellerId) where mutation.status == .failed {
-            retry(mutation, sellerId: sellerId)
-        }
-    }
-
-    /// Descarta la mutación y revierte su efecto local; luego refresca desde el backend.
-    @discardableResult
-    public func discard(_ mutation: PendingMutation, sellerId: String) -> ActionError? {
-        let key = mutation.entityKey
-        let others = pendingMutations(sellerId: sellerId).filter { $0.id != mutation.id }
-        switch mutation.type {
-        case .saleCreate?:
-            if let sale = fetchAll(FetchDescriptor<LocalSale>(predicate: #Predicate { $0.id == key })).first {
-                for line in sale.lines { adjustStock(productId: line.sellerProductId, sellerId: sellerId, delta: line.quantity) }
-                context.delete(sale)
-            }
-        case .catalogBarcodeAdd?:
-            if let payload = PayloadCoding.decode(BarcodePayload.self, from: mutation.payload), let product = product(id: key) {
-                product.barcodes.removeAll { $0 == payload.ean }
-                product.syncState = .synced
-            }
-        case .catalogProductQuick?:
-            if others.contains(where: { $0.payloadText.contains(key) }) {
-                return ActionError("Este producto se usa en otros cambios pendientes. Descártalos primero.")
-            }
-            if let product = product(id: key) { context.delete(product) }
-        case .receivingLineConfirm?:
-            naturaLine(id: key)?.syncState = .synced
-        case .customerCreate?:
-            if others.contains(where: { $0.payloadText.contains(key) }) {
-                return ActionError("Este cliente se usa en pedidos o ventas pendientes. Descártalos primero.")
-            }
-            for customer in fetchAll(FetchDescriptor<Customer>(predicate: #Predicate { $0.id == key })) { context.delete(customer) }
-        case .customerUpdate?:
-            fetchAll(FetchDescriptor<Customer>(predicate: #Predicate { $0.id == key })).first?.syncState = .synced
-        case .customerOrderCreate?:
-            for order in fetchAll(FetchDescriptor<CustomerOrder>(predicate: #Predicate { $0.id == key })) { context.delete(order) }
-        case .customerOrderUpdate?:
-            fetchAll(FetchDescriptor<CustomerOrder>(predicate: #Predicate { $0.id == key })).first?.syncState = .synced
-        case .inventoryReconciliationCreate?, nil:
-            break
-        }
-        removeLocalEvents(mutationId: mutation.id)
-        context.delete(mutation)
-        save()
-        if connectivity.isOnline {
-            Task { await self.pullAll(sellerId: sellerId) }
-        }
-        return nil
-    }
-
-    // MARK: - Ajustes
-
-    /// Compatibilidad: FIFO/LIFO como método de costeo local.
-    public func updateIssueStrategy(_ strategy: IssueStrategy, sellerId: String) async -> String? {
-        setCostingMethod(CostingMethod(strategy), sellerId: sellerId)
-        return nil
     }
 }

@@ -4,12 +4,12 @@ import Natura
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Cuenta Natura (M6): ciclo vigente con fechas, crédito, bloqueo y pagos (`mis-cuentas`).
 /// Muestra la última lectura guardada; "Actualizar" usa la contraseña guardada (Touch ID).
 struct NaturaAccountScreen: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var snapshots: [NaturaAccountSnapshot]
     @Query private var settings: [SellerSettings]
     let sellerId: String
@@ -49,10 +49,10 @@ struct NaturaAccountScreen: View {
                         if refreshing { ProgressView() }
                     }
                 }
-                .disabled(refreshing || !sync.connectivity.isOnline)
+                .disabled(refreshing || !store.connectivity.isOnline)
                 if let message { AlertBanner(message.text, tone: message.isError ? .danger : .success) }
             } footer: {
-                if !sync.connectivity.isOnline {
+                if !store.connectivity.isOnline {
                     Text("Sin conexión: se muestra la última lectura.")
                 } else if let fetched = snapshot?.fetchedAt {
                     Text("Actualizado \(fetched.formatted(.relative(presentation: .named))). También se actualiza al traer pedidos de Natura.")
@@ -90,7 +90,7 @@ struct NaturaAccountScreen: View {
                 message = (error.message, true)
                 return
             }
-            switch await sync.refreshNaturaAccount(sellerId: sellerId, customerCode: code, password: password) {
+            switch await store.refreshNaturaAccount(sellerId: sellerId, customerCode: code, password: password) {
             case .success(let text):
                 message = (text, false)
             case .failure(let error):

@@ -3,7 +3,7 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Vender (POS, §4.2): productos vendibles con stock, búsqueda, escáner y carro.
 public struct SellScreen: View {
@@ -11,7 +11,7 @@ public struct SellScreen: View {
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
     @Query private var cartLines: [CartDraftLine]
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @State private var searchText = ""
     @State private var showingCart = false
     @State private var showingScanner = false
@@ -71,9 +71,8 @@ public struct SellScreen: View {
                 .presentationDetents([.medium, .large])
             }
             .onSubmit(of: .search) { addExactMatch(searchText) }
-            .refreshable { await sync.syncNow(sellerId: sellerId) }
             .navigationTitle("Vender")
-            .syncStatusToolbar(sellerId: sellerId)
+            .mainToolbar(sellerId: sellerId)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dictating = true } label: { Image(systemName: "mic.fill") }

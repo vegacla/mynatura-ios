@@ -3,13 +3,13 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Editor de pedido de cliente (§4.7), optimizado para hablar con el cliente. 100 % offline.
 struct CustomerOrderEditor: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Query private var customers: [Customer]
     @Query private var products: [CatalogProduct]
@@ -120,10 +120,7 @@ struct CustomerOrderEditor: View {
         .task {
             loadIfNeeded()
             if startDictating, !showVoice, voiceUndo == nil, lines.isEmpty { showVoice = true }
-            if let orderId {
-                await sync.refreshCustomerOrder(sellerId: sellerId, orderId: orderId)
-                if lines.isEmpty, let fresh = orders.first?.lines { lines = fresh }
-            }
+            if orderId != nil, lines.isEmpty, let fresh = orders.first?.lines { lines = fresh }
         }
     }
 
@@ -315,7 +312,7 @@ struct CustomerOrderEditor: View {
             errorMessage = "El ciclo es obligatorio, formato AAAACC (ej. 202606)."
             return
         }
-        switch sync.saveCustomerOrder(sellerId: sellerId, orderId: orders.first?.id, customerId: selectedCustomerId,
+        switch store.saveCustomerOrder(sellerId: sellerId, orderId: orders.first?.id, customerId: selectedCustomerId,
                                       newCustomerName: selectedCustomerId == nil ? customerName : nil,
                                       cycle: cycle, status: status, note: note, lines: lines) {
         case .success:

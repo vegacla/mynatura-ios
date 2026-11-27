@@ -1,7 +1,8 @@
 import Foundation
 import SwiftData
 
-/// Acceso a `SessionSummary`. Solo hay una sesión "actual" por dispositivo.
+/// Perfil local de la app (M7): no hay login propio. `SessionSummary` guarda el `sellerId` con que se identifican
+/// los datos en el iPhone (en instalaciones anteriores, el del backend; si no, uno generado aquí).
 @MainActor
 public struct SessionRepository {
     private let context: ModelContext
@@ -16,29 +17,24 @@ public struct SessionRepository {
         return try? context.fetch(descriptor).first
     }
 
-    /// Guarda la sesión validada. Si entra otra cuenta, borra los datos locales de la anterior.
-    @discardableResult
-    public func upsert(sellerId: String, customerCode: String, displayName: String) throws -> SessionSummary {
-        var all = try context.fetch(FetchDescriptor<SessionSummary>())
-        if all.contains(where: { $0.sellerId != sellerId }) {
-            try PersistenceController.deleteAllData(in: context)
-            all = []
-        }
-        let summary: SessionSummary
-        if let existing = all.first(where: { $0.sellerId == sellerId }) {
-            existing.customerCode = customerCode
-            existing.displayName = displayName
-            existing.lastValidatedAt = .now
-            summary = existing
-        } else {
-            summary = SessionSummary(sellerId: sellerId, customerCode: customerCode, displayName: displayName)
-            context.insert(summary)
-        }
-        try context.save()
-        return summary
+    /// El perfil existente o uno nuevo (`local-…`).
+    public func ensureLocalProfile() -> SessionSummary {
+        if let existing = current() { return existing }
+        let profile = SessionSummary(sellerId: "local-" + UUID().uuidString.lowercased(), customerCode: "", displayName: "")
+        context.insert(profile)
+        try? context.save()
+        return profile
     }
 
-    /// Logout: borra los datos locales de la cuenta.
+    /// Guarda el código de consultora Natura en el perfil (se muestra en Ajustes).
+    public func updateCustomerCode(_ code: String) {
+        guard let profile = current(), profile.customerCode != code else { return }
+        profile.customerCode = code
+        profile.lastValidatedAt = .now
+        try? context.save()
+    }
+
+    /// Borra todos los datos del iPhone (incluido el perfil).
     public func deleteAll() throws {
         try PersistenceController.deleteAllData(in: context)
     }

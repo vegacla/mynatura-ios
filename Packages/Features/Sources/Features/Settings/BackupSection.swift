@@ -3,14 +3,14 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 import UIKit
 import UniformTypeIdentifiers
 
 /// Respaldo (M5, docs/local-first-migration.md §6): exportar e importar un JSON con todos los datos,
 /// con recordatorio semanal. Sin credenciales.
 struct BackupSection: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var settings: [SellerSettings]
     let sellerId: String
     @State private var exported: ExportedFile?
@@ -28,7 +28,7 @@ struct BackupSection: View {
     var body: some View {
         Section {
             LabeledContent("Último respaldo", value: BackupReminder.label(lastBackupAt: lastBackupAt, now: .now))
-            if BackupReminder.isDue(lastBackupAt: lastBackupAt, hasData: sync.hasBackupableData(sellerId: sellerId), now: .now) {
+            if BackupReminder.isDue(lastBackupAt: lastBackupAt, hasData: store.hasBackupableData(sellerId: sellerId), now: .now) {
                 AlertBanner("Haz un respaldo: guárdalo en Archivos o Drive, o envíatelo por correo.", tone: .warning,
                             systemImage: "externaldrive.badge.exclamationmark")
             }
@@ -46,7 +46,7 @@ struct BackupSection: View {
             ActivityView(items: [file.url]) { completed in
                 exported = nil
                 if completed {
-                    sync.markBackupDone(sellerId: sellerId)
+                    store.markBackupDone(sellerId: sellerId)
                     message = ("Respaldo listo.", false)
                     Haptics.success()
                 }
@@ -56,7 +56,7 @@ struct BackupSection: View {
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url):
-                switch sync.readBackup(at: url) {
+                switch store.readBackup(at: url) {
                 case .success(let backup): pendingRestore = PendingRestore(backup: backup)
                 case .failure(let error): message = (error.message, true)
                 }
@@ -67,7 +67,7 @@ struct BackupSection: View {
         .sheet(item: $pendingRestore) { pending in
             RestorePreviewSheet(backup: pending.backup) {
                 pendingRestore = nil
-                if let error = sync.restoreBackup(pending.backup, sellerId: sellerId) {
+                if let error = store.restoreBackup(pending.backup, sellerId: sellerId) {
                     message = (error.message, true)
                     Haptics.error()
                 } else {
@@ -80,7 +80,7 @@ struct BackupSection: View {
 
     private func export() {
         message = nil
-        switch sync.exportBackup(sellerId: sellerId, appVersion: AppInfo.versionLabel) {
+        switch store.exportBackup(sellerId: sellerId, appVersion: AppInfo.versionLabel) {
         case .success(let url): exported = ExportedFile(url: url)
         case .failure(let error): message = (error.message, true)
         }

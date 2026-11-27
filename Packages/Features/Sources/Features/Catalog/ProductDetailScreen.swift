@@ -3,11 +3,11 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Detalle de producto (§4.5): EAN asociados, conciliación física y kardex.
 struct ProductDetailScreen: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
     @Query private var events: [InventoryEventRecord]
@@ -32,7 +32,6 @@ struct ProductDetailScreen: View {
                             Text("SKU \(product.naturaSku)").font(.subheadline).foregroundStyle(.secondary)
                             SellableBadge(isSellable: product.isSellable)
                             StatusBadge(product.source.label)
-                            if product.syncState == .pending { StatusBadge("Pendiente", tone: .warning) }
                         }
                     }
                     LabeledContent("Precio compra") { MoneyText(product.lastPurchase) }
@@ -53,7 +52,7 @@ struct ProductDetailScreen: View {
             }
             .navigationTitle("Producto")
             .navigationBarTitleDisplayMode(.inline)
-            .syncStatusToolbar(sellerId: sellerId)
+            .mainToolbar(sellerId: sellerId)
         } else {
             ContentUnavailableView("Producto no encontrado", systemImage: "shippingbox")
         }
@@ -61,7 +60,7 @@ struct ProductDetailScreen: View {
 }
 
 private struct BarcodesSection: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     let product: CatalogProduct
     let sellerId: String
     @State private var newEAN = ""
@@ -96,7 +95,7 @@ private struct BarcodesSection: View {
     }
 
     private func add() {
-        if let error = sync.addBarcode(sellerId: sellerId, productId: product.id, ean: newEAN) {
+        if let error = store.addBarcode(sellerId: sellerId, productId: product.id, ean: newEAN) {
             errorMessage = error.message
             Haptics.error()
         } else {
@@ -108,7 +107,7 @@ private struct BarcodesSection: View {
 }
 
 private struct ReconciliationSection: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     let productId: String
     let sellerId: String
     let stock: StockItem?
@@ -150,9 +149,9 @@ private struct ReconciliationSection: View {
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(counted == operational ? Color.secondary : StatusTone.warning.color)
             Button("Guardar conciliación") {
-                sync.createReconciliation(sellerId: sellerId, productId: productId, counted: counted, note: note)
+                store.createReconciliation(sellerId: sellerId, productId: productId, counted: counted, note: note)
                 note = ""
-                savedMessage = sync.connectivity.isOnline ? "Conciliación guardada." : "Conciliación guardada en el iPhone; se sincroniza al volver la red."
+                savedMessage = store.connectivity.isOnline ? "Conciliación guardada." : "Conciliación guardada en el iPhone; se sincroniza al volver la red."
                 Haptics.success()
             }
             if let savedMessage {
@@ -203,7 +202,7 @@ private struct ReconciliationSection: View {
 
 /// Lotes del producto (docs/local-first-migration.md §4): stock por lote, costo y su origen; completar costos pendientes.
 private struct LotsSection: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var lots: [InventoryLotRecord]
     @State private var editingLotId: String?
     @State private var costInput = Money.zero
@@ -266,7 +265,7 @@ private struct LotsSection: View {
     }
 
     private func complete(_ lot: InventoryLotRecord) {
-        if let error = sync.completeLotCost(lotId: lot.id, unitCost: costInput) {
+        if let error = store.completeLotCost(lotId: lot.id, unitCost: costInput) {
             errorMessage = error.message
             Haptics.error()
         } else {
@@ -299,7 +298,6 @@ private struct KardexRowView: View {
                 HStack(spacing: 4) {
                     Text(row.entry.occurredAt.formatted(date: .numeric, time: .omitted))
                     Text(row.entry.kind.label).fontWeight(.medium)
-                    if row.entry.isPending { Image(systemName: "icloud.slash").foregroundStyle(.secondary) }
                 }
                 if let note = row.entry.note {
                     Text(note).foregroundStyle(.secondary).lineLimit(2)
@@ -318,7 +316,7 @@ private struct KardexRowView: View {
 /// Creación rápida por SKU (§4.5 toolbar "+"), con autocompletado desde el maestro Natura.
 struct QuickProductSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     let sellerId: String
     let onCreated: (String) -> Void
     @State private var sku = ""
@@ -373,14 +371,14 @@ struct QuickProductSheet: View {
         lookingUp = true
         let current = sku
         Task {
-            let found = await sync.lookupMasterProductName(sku: current)
+            let found = await store.lookupMasterProductName(sku: current)
             if current == sku, name.isEmpty, let found { name = found }
             lookingUp = false
         }
     }
 
     private func create() {
-        switch sync.quickCreateProduct(sellerId: sellerId, sku: sku, name: name) {
+        switch store.quickCreateProduct(sellerId: sellerId, sku: sku, name: name) {
         case .success(let id):
             onCreated(id)
             dismiss()

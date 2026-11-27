@@ -4,7 +4,7 @@ import Persistence
 import PhotosUI
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Foto de un producto → reconocerlo → elegir acción → ejecutar (docs/product-photo-proposal.md).
 /// Señales leídas en el iPhone: código de barras, código Natura impreso y nombre de la etiqueta.
@@ -12,7 +12,7 @@ import Sync
 struct ProductPhotoSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Environment(AppRouter.self) private var router
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
@@ -506,7 +506,7 @@ struct ProductPhotoSheet: View {
 
     private func saveShelf() {
         for row in shelfRows {
-            sync.createReconciliation(sellerId: sellerId, productId: row.productId, counted: row.counted,
+            store.createReconciliation(sellerId: sellerId, productId: row.productId, counted: row.counted,
                                       note: "Inventario por foto")
         }
         message = ("Guardadas \(shelfRows.count) conciliación(es).", false)
@@ -555,7 +555,7 @@ struct ProductPhotoSheet: View {
 
     private func saveInventory(_ product: CatalogProduct) {
         highlighted = nil
-        sync.createReconciliation(sellerId: sellerId, productId: product.id, counted: counted, note: countNote)
+        store.createReconciliation(sellerId: sellerId, productId: product.id, counted: counted, note: countNote)
         countNote = ""
         showingInventory = false
         message = ("Conciliación guardada: \(product.name) = \(counted).", false)
@@ -564,7 +564,7 @@ struct ProductPhotoSheet: View {
 
     private func link(_ ean: String, to product: CatalogProduct) {
         highlighted = nil
-        if let error = sync.addBarcode(sellerId: sellerId, productId: product.id, ean: ean) {
+        if let error = store.addBarcode(sellerId: sellerId, productId: product.id, ean: ean) {
             message = (error.message, true)
             Haptics.error()
         } else {
@@ -595,7 +595,7 @@ struct ProductPhotoSheet: View {
                 sellerProductId: product.id, productName: product.name, naturaSku: product.naturaSku, quantity: 1,
                 suggestedPesos: product.lastSuggestedSalePesos, finalPesos: nil))
         }
-        switch sync.saveCustomerOrder(sellerId: sellerId, orderId: order.id, customerId: order.customerId, newCustomerName: nil,
+        switch store.saveCustomerOrder(sellerId: sellerId, orderId: order.id, customerId: order.customerId, newCustomerName: nil,
                                       cycle: order.cycle, status: order.status, note: order.note, lines: lines) {
         case .success:
             message = ("Agregado al pedido de \(order.customerDisplayName).", false)
@@ -613,7 +613,7 @@ struct ProductPhotoSheet: View {
             return
         }
         let quantity = min(line.receivedQuantity + 1, line.quantity)
-        if let error = sync.confirmReceivingLine(sellerId: sellerId, lineId: line.id, quantity: quantity,
+        if let error = store.confirmReceivingLine(sellerId: sellerId, lineId: line.id, quantity: quantity,
                                                  suggestedPesos: line.suggestedPesos) {
             message = (error.message, true)
             Haptics.error()

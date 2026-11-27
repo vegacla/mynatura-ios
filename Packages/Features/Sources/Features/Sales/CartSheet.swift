@@ -3,13 +3,13 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Carro (§4.3): líneas, precio final, motivo, cliente, nota y registro.
 struct CartSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var lines: [CartDraftLine]
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
@@ -92,7 +92,7 @@ struct CartSheet: View {
                     .disabled(lines.isEmpty)
                     .listRowBackground(Color.clear)
                 } footer: {
-                    if !sync.connectivity.isOnline {
+                    if !store.connectivity.isOnline {
                         Text("Sin conexión: la venta se guarda en el iPhone y se sincroniza sola al volver la red.")
                     }
                 }
@@ -133,11 +133,11 @@ struct CartSheet: View {
                           reasonCode: $0.reasonCode, reasonNote: $0.reasonNote)
         }
         let sourceOrderId = draft.sourceOrderId
-        switch sync.registerSale(sellerId: sellerId, lines: saleLines, note: draft.note,
+        switch store.registerSale(sellerId: sellerId, lines: saleLines, note: draft.note,
                                  customerId: draft.customerId, customerName: draft.customerName) {
         case .success:
             if let sourceOrderId {
-                sync.setCustomerOrderStatus(sellerId: sellerId, orderId: sourceOrderId, status: .fulfilled)
+                store.setCustomerOrderStatus(sellerId: sellerId, orderId: sourceOrderId, status: .fulfilled)
             }
             Cart.clear(sellerId: sellerId, context: context)
             Haptics.success()

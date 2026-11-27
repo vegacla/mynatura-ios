@@ -1,5 +1,6 @@
 import Foundation
 
+/// Tipos de mutación de la cola del backend (§7.1). Desde M7 no se usan: quedan para leer la cola antigua y descartarla.
 /// Tipos de mutación offline (§7.1). `catalog.product.quick` es propio de la app iOS
 /// (creación rápida de producto offline, §4.7) y usa `POST /api/catalog/products/quick`.
 public enum MutationType: String, Sendable, Codable, CaseIterable {
@@ -94,32 +95,5 @@ public enum LocalID {
     /// Reemplaza IDs locales por los del servidor en un payload.
     public static func rewrite(_ text: String, mapping: [String: String]) -> String {
         mapping.reduce(text) { partial, pair in partial.replacingOccurrences(of: pair.key, with: pair.value) }
-    }
-}
-
-/// Estado de la pastilla de conectividad/sync (§3).
-public enum SyncIndicator: Equatable, Sendable {
-    case online
-    case pending(Int)
-    case offline(pending: Int)
-    case failed(Int)
-    case syncing
-
-    public static func derive(isOnline: Bool, isSyncing: Bool, pending: Int, failed: Int) -> SyncIndicator {
-        if !isOnline { return .offline(pending: pending) }
-        if isSyncing { return .syncing }
-        if failed > 0 { return .failed(failed) }
-        if pending > 0 { return .pending(pending) }
-        return .online
-    }
-
-    public var label: String {
-        switch self {
-        case .online: "En línea"
-        case .pending(let count): "Pendiente sync (\(count))"
-        case .offline(let pending): pending > 0 ? "Sin conexión · \(pending)" : "Sin conexión"
-        case .failed(let count): "Sync falló (\(count))"
-        case .syncing: "Sincronizando"
-        }
     }
 }

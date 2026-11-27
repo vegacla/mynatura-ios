@@ -9,13 +9,12 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../Core"),
-        .package(path: "../APIClient"),
         .package(path: "../Persistence"),
-        .package(path: "../Sync"),
+        .package(path: "../Store"),
         .package(path: "../DesignSystem"),
         .package(path: "../Natura"),
     ],
     targets: [
-        .target(name: "Features", dependencies: ["Core", "APIClient", "Persistence", "Sync", "DesignSystem", "Natura"]),
+        .target(name: "Features", dependencies: ["Core", "Persistence", "Store", "DesignSystem", "Natura"]),
     ]
 )

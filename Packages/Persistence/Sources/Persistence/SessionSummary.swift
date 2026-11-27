@@ -1,13 +1,14 @@
 import Foundation
 import SwiftData
 
-/// Última sesión validada contra el backend; permite entrar offline (§4.1, §6).
+/// Perfil local (M7): `sellerId` con que se identifican los datos del iPhone y código de consultora Natura.
+/// En instalaciones anteriores conserva el `sellerId` del backend, para no perder datos.
 @Model
 public final class SessionSummary {
     @Attribute(.unique) public var sellerId: String
     public var customerCode: String
     public var displayName: String
-    /// Última vez que `/api/auth/me` o login confirmaron la sesión.
+    /// Última actualización del perfil.
     public var lastValidatedAt: Date
 
     public init(sellerId: String, customerCode: String, displayName: String, lastValidatedAt: Date = .now) {

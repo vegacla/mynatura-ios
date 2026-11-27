@@ -3,11 +3,11 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Recibir por código (§4.6): campo + escáner continuo; cada lectura suma 1 a la línea.
 struct ReceiveByCodeScreen: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var orders: [NaturaOrder]
     @Query private var lines: [NaturaOrderLine]
     @State private var code = ""
@@ -54,7 +54,7 @@ struct ReceiveByCodeScreen: View {
         }
         .navigationTitle("Recibir por código")
         .navigationBarTitleDisplayMode(.inline)
-        .syncStatusToolbar(sellerId: sellerId)
+        .mainToolbar(sellerId: sellerId)
         .onAppear { focused = true }
         .sheet(isPresented: $scanning) {
             ScannerSheet(title: "Escaneo continuo", continuous: true) { value in submit(value) }
@@ -72,7 +72,7 @@ struct ReceiveByCodeScreen: View {
     }
 
     private func submit(_ value: String) {
-        switch sync.scanReceiving(sellerId: sellerId, orderId: orderId, code: value) {
+        switch store.scanReceiving(sellerId: sellerId, orderId: orderId, code: value) {
         case .matched(let name, let received, let ordered):
             feedback = ("\(name): \(received) / \(ordered)", false)
             Haptics.success()

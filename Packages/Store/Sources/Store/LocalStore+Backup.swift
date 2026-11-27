@@ -4,7 +4,7 @@ import Persistence
 import SwiftData
 
 /// Respaldo local (M5 de docs/local-first-migration.md §6): exportar e importar un JSON con todo.
-extension SyncEngine {
+extension LocalStore {
     /// Escribe el respaldo en un archivo temporal listo para compartir (Archivos, Drive, correo…).
     public func exportBackup(sellerId: String, appVersion: String?) -> Result<URL, ActionError> {
         do {

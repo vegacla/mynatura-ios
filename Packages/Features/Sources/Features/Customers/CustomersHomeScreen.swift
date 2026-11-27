@@ -3,7 +3,7 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Clientes (§4.7): segmentos Pedidos y Clientes.
 public struct CustomersHomeScreen: View {
@@ -31,13 +31,13 @@ public struct CustomersHomeScreen: View {
                 }
             }
             .navigationTitle("Clientes")
-            .syncStatusToolbar(sellerId: sellerId)
+            .mainToolbar(sellerId: sellerId)
         }
     }
 }
 
 struct CustomerOrdersListView: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var orders: [CustomerOrder]
     let sellerId: String
 
@@ -62,7 +62,6 @@ struct CustomerOrdersListView: View {
                                        description: Text("Anota lo que tus clientes quieren pedir en cada ciclo."))
             }
         }
-        .refreshable { await sync.syncNow(sellerId: sellerId) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
@@ -84,8 +83,6 @@ struct CustomerOrderRow: View {
                 Text(order.customerDisplayName).font(.body.weight(.medium))
                 Spacer()
                 CustomerOrderStatusBadge(status: order.status)
-                if order.syncState == .pending { Image(systemName: "icloud.slash").foregroundStyle(.secondary) }
-                if order.syncState == .failed { Image(systemName: "exclamationmark.icloud.fill").foregroundStyle(StatusTone.danger.color) }
             }
             Text("\(CycleCode.label(order.cycle)) · \(order.orderedAt.formatted(date: .abbreviated, time: .omitted)) · \(order.lineCount) línea(s)")
                 .font(.caption).foregroundStyle(.secondary)

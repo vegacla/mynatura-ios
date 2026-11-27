@@ -3,13 +3,13 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// "Agregar inventario actual" (una vez, docs/local-first-migration.md §7.1): se cuenta lo que hay hoy;
 /// la diferencia con lo comprado queda como ventas previas (FIFO), con ingreso estimado al precio sugerido.
 struct InitialInventoryScreen: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
     let sellerId: String
@@ -104,7 +104,7 @@ struct InitialInventoryScreen: View {
     }
 
     private func save() {
-        switch sync.setInitialInventory(sellerId: sellerId, counts: counts) {
+        switch store.setInitialInventory(sellerId: sellerId, counts: counts) {
         case .success(let summary):
             message = (summary, false)
             Haptics.success()

@@ -3,11 +3,11 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Detalle de pedido Natura (§4.6): totales, entradas de recepción y cerrar/reabrir.
 struct NaturaOrderDetailScreen: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var orders: [NaturaOrder]
     @State private var errorMessage: String?
     @State private var working = false
@@ -71,9 +71,7 @@ struct NaturaOrderDetailScreen: View {
             }
             .navigationTitle("Pedido \(order.orderNumber)")
             .navigationBarTitleDisplayMode(.inline)
-            .syncStatusToolbar(sellerId: sellerId)
-            .refreshable { await sync.refreshNaturaOrder(sellerId: sellerId, orderId: orderId) }
-            .task { await sync.refreshNaturaOrder(sellerId: sellerId, orderId: orderId) }
+            .mainToolbar(sellerId: sellerId)
             .overlay {
                 if !order.linesLoaded {
                     ContentUnavailableView("Líneas no descargadas", systemImage: "icloud.and.arrow.down",
@@ -89,7 +87,7 @@ struct NaturaOrderDetailScreen: View {
         working = true
         errorMessage = nil
         Task {
-            if let error = await sync.setReceivingClosed(sellerId: sellerId, orderId: orderId, closed: closed) {
+            if let error = await store.setReceivingClosed(sellerId: sellerId, orderId: orderId, closed: closed) {
                 errorMessage = error.message
                 Haptics.error()
             } else {

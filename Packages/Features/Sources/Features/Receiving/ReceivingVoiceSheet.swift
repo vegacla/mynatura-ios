@@ -2,14 +2,14 @@ import Core
 import DesignSystem
 import Persistence
 import SwiftUI
-import Sync
+import Store
 
 /// Recepción dictada (V3 de docs/voice-interaction-proposal.md): "llegaron cuatro del 87654",
 /// "del Kaiak llegaron dos, falta uno", "llegó completo el Ekos". Con un toque escucha sin manos
 /// mientras se abren las cajas. Nada se guarda hasta tocar "Aplicar".
 struct ReceivingVoiceSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Environment(\.modelContext) private var context
     @AppStorage("voice.allowServerRecognition") private var allowServer = false
     @State private var speech = SpeechCaptureService()
@@ -301,7 +301,7 @@ struct ReceivingVoiceSheet: View {
         var saved = 0
         for change in changedLines {
             guard let line = linesById[change.id] else { continue }
-            if let error = sync.confirmReceivingLine(sellerId: sellerId, lineId: line.id, quantity: change.received,
+            if let error = store.confirmReceivingLine(sellerId: sellerId, lineId: line.id, quantity: change.received,
                                                      suggestedPesos: line.suggestedPesos) {
                 errors.append("\(line.productName): \(error.message)")
             } else {

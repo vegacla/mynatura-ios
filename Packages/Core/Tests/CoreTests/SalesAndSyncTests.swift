@@ -71,12 +71,6 @@ struct SalesAndSyncTests {
     }
 
     @Test func indicator() {
-        #expect(SyncIndicator.derive(isOnline: false, isSyncing: true, pending: 2, failed: 1) == .offline(pending: 2))
-        #expect(SyncIndicator.derive(isOnline: true, isSyncing: true, pending: 2, failed: 1) == .syncing)
-        #expect(SyncIndicator.derive(isOnline: true, isSyncing: false, pending: 2, failed: 1) == .failed(1))
-        #expect(SyncIndicator.derive(isOnline: true, isSyncing: false, pending: 2, failed: 0) == .pending(2))
-        #expect(SyncIndicator.derive(isOnline: true, isSyncing: false, pending: 0, failed: 0) == .online)
-        #expect(SyncIndicator.online.label == "En línea")
     }
 }
 

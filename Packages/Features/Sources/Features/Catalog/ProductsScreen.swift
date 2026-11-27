@@ -3,7 +3,7 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 enum CatalogRoute: Hashable {
     case product(id: String)
@@ -11,7 +11,7 @@ enum CatalogRoute: Hashable {
 
 /// Productos (§4.5): catálogo visible con búsqueda por nombre/SKU/EAN. Funciona offline desde SwiftData.
 public struct ProductsScreen: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var products: [CatalogProduct]
     @Query private var stock: [StockItem]
     @State private var searchText = ""
@@ -45,21 +45,16 @@ public struct ProductsScreen: View {
             .listStyle(.insetGrouped)
             .overlay {
                 if products.isEmpty {
-                    if sync.isPulling {
-                        ProgressView("Descargando catálogo…")
-                    } else {
-                        ContentUnavailableView(
-                            "Sin productos", systemImage: "shippingbox",
-                            description: Text("Desliza hacia abajo para actualizar. Solo aparecen productos comprados en pedidos Natura o creados a mano."))
-                    }
+                    ContentUnavailableView(
+                        "Sin productos", systemImage: "shippingbox",
+                        description: Text("Trae tus pedidos desde Ajustes › Natura: el catálogo se arma con tus pedidos y el catálogo del ciclo."))
                 } else if filtered.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                 }
             }
             .searchable(text: $searchText, prompt: "Nombre, SKU o EAN")
-            .refreshable { await sync.syncNow(sellerId: sellerId) }
             .navigationTitle("Productos")
-            .syncStatusToolbar(sellerId: sellerId)
+            .mainToolbar(sellerId: sellerId)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     ProductPhotoButton(sellerId: sellerId)

@@ -1,19 +1,19 @@
 // swift-tools-version:6.0
 import PackageDescription
 
+/// Store local (docs/local-first-migration.md §3): acciones que escriben directo en SwiftData e importación desde Natura.
 let package = Package(
-    name: "Sync",
+    name: "Store",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
-        .library(name: "Sync", targets: ["Sync"]),
+        .library(name: "Store", targets: ["Store"]),
     ],
     dependencies: [
         .package(path: "../Core"),
-        .package(path: "../APIClient"),
         .package(path: "../Persistence"),
         .package(path: "../Natura"),
     ],
     targets: [
-        .target(name: "Sync", dependencies: ["Core", "APIClient", "Persistence", "Natura"]),
+        .target(name: "Store", dependencies: ["Core", "Persistence", "Natura"]),
     ]
 )

@@ -3,11 +3,11 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 /// Recepción (§4.6): lista de pedidos Natura entregados.
 public struct ReceivingScreen: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var orders: [NaturaOrder]
     @State private var searchText = ""
     private let sellerId: String
@@ -42,9 +42,8 @@ public struct ReceivingScreen: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Número de pedido")
-            .refreshable { await sync.syncNow(sellerId: sellerId) }
             .navigationTitle("Recepción")
-            .syncStatusToolbar(sellerId: sellerId)
+            .mainToolbar(sellerId: sellerId)
         }
     }
 }

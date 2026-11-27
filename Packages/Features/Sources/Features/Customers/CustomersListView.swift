@@ -3,10 +3,10 @@ import DesignSystem
 import Persistence
 import SwiftData
 import SwiftUI
-import Sync
+import Store
 
 struct CustomersListView: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     @Query private var customers: [Customer]
     @State private var searchText = ""
     @State private var creating = false
@@ -33,8 +33,6 @@ struct CustomersListView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Text(customer.displayName)
-                        if customer.syncState == .pending { Image(systemName: "icloud.slash").foregroundStyle(.secondary) }
-                        if customer.syncState == .failed { Image(systemName: "exclamationmark.icloud.fill").foregroundStyle(StatusTone.danger.color) }
                     }
                     if let phone = customer.phone { Text(phone).font(.caption).foregroundStyle(.secondary) }
                 }
@@ -48,7 +46,6 @@ struct CustomersListView: View {
                 ContentUnavailableView.search(text: searchText)
             }
         }
-        .refreshable { await sync.syncNow(sellerId: sellerId) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { creating = true } label: { Label("Nuevo cliente", systemImage: "person.badge.plus") }
@@ -66,7 +63,7 @@ struct CustomersListView: View {
 
 /// Formulario de cliente compartido entre lista y detalle (§10 CustomerForm).
 struct CustomerForm: View {
-    @Environment(SyncEngine.self) private var sync
+    @Environment(LocalStore.self) private var store
     let sellerId: String
     let customer: Customer?
     let onSaved: (String) -> Void
@@ -101,7 +98,7 @@ struct CustomerForm: View {
     }
 
     private func save() {
-        switch sync.saveCustomer(sellerId: sellerId, customerId: customer?.id, name: name, rut: rut, phone: phone, notes: notes) {
+        switch store.saveCustomer(sellerId: sellerId, customerId: customer?.id, name: name, rut: rut, phone: phone, notes: notes) {
         case .success(let id):
             errorMessage = nil
             saved = true
@@ -162,7 +159,7 @@ struct CustomerDetailScreen: View {
             }
             .navigationTitle(customer.displayName)
             .navigationBarTitleDisplayMode(.inline)
-            .syncStatusToolbar(sellerId: sellerId)
+            .mainToolbar(sellerId: sellerId)
         } else {
             ContentUnavailableView("Cliente no encontrado", systemImage: "person")
         }

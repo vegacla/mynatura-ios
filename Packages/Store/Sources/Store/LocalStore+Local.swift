@@ -5,7 +5,7 @@ import SwiftData
 
 /// Inventario local (M2 de docs/local-first-migration.md): el iPhone es la fuente de verdad.
 /// El stock es la suma de los lotes; cada salida consume lotes según el método de costeo y guarda su costo.
-extension SyncEngine {
+extension LocalStore {
     // MARK: Modo local
 
     func settings(sellerId: String) -> SellerSettings {
@@ -16,9 +16,6 @@ extension SyncEngine {
         context.insert(created)
         return created
     }
-
-    /// Desde M3 el inventario y todos los datos son locales: el backend ya no se lee ni se escribe.
-    public func isLocalInventory(sellerId: String) -> Bool { true }
 
     public func costingMethod(sellerId: String) -> CostingMethod {
         fetchAll(FetchDescriptor<SellerSettings>(predicate: #Predicate { $0.sellerId == sellerId })).first?
@@ -31,57 +28,34 @@ extension SyncEngine {
         save()
     }
 
-    /// Pasa a inventario local una sola vez: el stock bajado del backend queda como lotes de saldo inicial
-    /// (costo = último costo de compra; si es 0, unidad gratis). Las mutaciones pendientes se descartan porque
-    /// su efecto ya está en el stock local y el backend deja de recibir cambios.
-    public func adoptLocalInventoryIfNeeded(sellerId: String) {
+    /// Una vez por instalación (M7): descarta la cola del backend y marca como sincronizado lo que quedó pendiente,
+    /// para que no se muestren íconos de "sin sincronizar". No hay servidor al que enviarlo.
+    public func finishLocalMigrationIfNeeded(sellerId: String) {
         let current = settings(sellerId: sellerId)
-        guard current.localInventoryAdoptedAt == nil else { return }
-        // M3: ya no se convierte el stock del backend en lotes; el inventario sale de la importación directa
-        // y de "Agregar inventario actual". Solo se marca el modo local y se vacía la cola.
-        for mutation in pendingMutations(sellerId: sellerId) { context.delete(mutation) }
-        current.localInventoryAdoptedAt = .now
-        save()
-        if current.localInventoryAdoptedAt != nil { return }
-        // (Código de M2 que convertía el stock del backend en saldo inicial; ya no se alcanza.)
-        let stockKey = DatasetSyncState.key(sellerId: sellerId, dataset: .stock)
-        guard fetchAll(FetchDescriptor<DatasetSyncState>(predicate: #Predicate { $0.key == stockKey })).first?
-            .lastSyncedAt != nil else { return }
-        let items = fetchAll(FetchDescriptor<StockItem>(predicate: #Predicate { $0.sellerId == sellerId }))
-        let existingLots = fetchAll(FetchDescriptor<InventoryLotRecord>(predicate: #Predicate { $0.sellerId == sellerId }))
-        let withLots = Set(existingLots.map(\.productId))
-        let now = Date()
-        for item in items where item.operationalQuantity > 0 && !withLots.contains(item.sellerProductId) {
-            let cost = product(id: item.sellerProductId)?.lastPurchasePesos ?? 0
-            context.insert(InventoryLotRecord(
-                sellerId: sellerId, productId: item.sellerProductId, receivedAt: now, quantity: item.operationalQuantity,
-                unitCost: Money(pesos: max(cost, 0)), source: cost > 0 ? .purchased : .free, origin: .opening,
-                note: "Saldo inicial al pasar a inventario local"))
-            item.theoreticalQuantity = item.operationalQuantity
-        }
-        for mutation in pendingMutations(sellerId: sellerId) { context.delete(mutation) }
+        let hasQueue = !fetchAll(FetchDescriptor<PendingMutation>(predicate: #Predicate { $0.sellerId == sellerId })).isEmpty
+        guard current.localInventoryAdoptedAt == nil || hasQueue else { return }
+        clearLegacyQueue(sellerId: sellerId)
         for event in fetchAll(FetchDescriptor<InventoryEventRecord>(predicate: #Predicate { $0.sellerId == sellerId && $0.isLocal })) {
             event.isLocal = false
         }
-        for product in fetchAll(FetchDescriptor<CatalogProduct>(predicate: #Predicate { $0.sellerId == sellerId })) {
+        for product in fetchAll(FetchDescriptor<CatalogProduct>(predicate: #Predicate { $0.sellerId == sellerId })) where product.syncState != .synced {
             product.syncState = .synced
         }
         for sale in fetchAll(FetchDescriptor<LocalSale>(predicate: #Predicate { $0.sellerId == sellerId })) where sale.syncState != .synced {
             sale.syncState = .synced
             sale.errorMessage = nil
         }
-        for customer in fetchAll(FetchDescriptor<Customer>(predicate: #Predicate { $0.sellerId == sellerId })) {
+        for customer in fetchAll(FetchDescriptor<Customer>(predicate: #Predicate { $0.sellerId == sellerId })) where customer.syncState != .synced {
             customer.syncState = .synced
         }
-        for order in fetchAll(FetchDescriptor<CustomerOrder>(predicate: #Predicate { $0.sellerId == sellerId })) {
+        for order in fetchAll(FetchDescriptor<CustomerOrder>(predicate: #Predicate { $0.sellerId == sellerId })) where order.syncState != .synced {
             order.syncState = .synced
         }
         for line in fetchAll(FetchDescriptor<NaturaOrderLine>(predicate: #Predicate { $0.sellerId == sellerId })) {
             line.syncState = .synced
         }
-        current.localInventoryAdoptedAt = now
+        current.localInventoryAdoptedAt = current.localInventoryAdoptedAt ?? .now
         save()
-        AppLog.sync.info("Inventario local adoptado")
     }
 
     // MARK: Lotes

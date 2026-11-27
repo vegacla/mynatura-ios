@@ -7,12 +7,10 @@ options:
 packages:
   Core:
     path: Packages/Core
-  APIClient:
-    path: Packages/APIClient
   Persistence:
     path: Packages/Persistence
-  Sync:
-    path: Packages/Sync
+  Store:
+    path: Packages/Store
   DesignSystem:
     path: Packages/DesignSystem
   Features:
@@ -27,9 +25,8 @@ targets:
       - path: MyNatura
     dependencies:
       - package: Core
-      - package: APIClient
       - package: Persistence
-      - package: Sync
+      - package: Store
       - package: DesignSystem
       - package: Features
       - package: Natura
@@ -48,18 +45,6 @@ targets:
         NSFaceIDUsageDescription: "MyNatura usa Face ID para proteger tu contraseña de Natura guardada en este iPhone."
         NSMicrophoneUsageDescription: "MyNatura usa el micrófono para que puedas dictar pedidos, recepciones y consultas."
         NSSpeechRecognitionUsageDescription: "MyNatura transcribe tu voz para completar pedidos y responder consultas. El audio no se guarda."
-        NSLocalNetworkUsageDescription: "MyNatura se conecta al servidor de desarrollo en tu red local."
-        NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
-        UIBackgroundModes:
-          - fetch
-        BGTaskSchedulerPermittedIdentifiers:
-          - cl.mynatura.app.refresh
-        # Prellenado del login solo para el build de simulador (Appetize). Vacíos por defecto;
-        # CI los llena desde variables/secrets del repo, nunca desde el código.
-        MNDevServerURL: $(MN_DEV_SERVER_URL)
-        MNDevCustomerCode: $(MN_DEV_CUSTOMER_CODE)
-        MNDevPassword: $(MN_DEV_PASSWORD)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cl.mynatura.app

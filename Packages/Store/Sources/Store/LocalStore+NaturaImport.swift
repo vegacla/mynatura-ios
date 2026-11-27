@@ -42,7 +42,7 @@ struct ImportedLine {
 }
 
 /// Importación directa desde Natura (M3 de docs/local-first-migration.md): sin backend.
-extension SyncEngine {
+extension LocalStore {
     static let materialPattern = "revista|catalog|cat[aá]logo|carta"
 
     /// Trae todos los pedidos entregados (Excel del pedido; HTML de respaldo), el ciclo vigente y el catálogo del ciclo.
@@ -185,7 +185,7 @@ extension SyncEngine {
         for lot in fetchAll(FetchDescriptor<InventoryLotRecord>(predicate: #Predicate { $0.sellerId == sellerId })) { context.delete(lot) }
         for item in fetchAll(FetchDescriptor<StockItem>(predicate: #Predicate { $0.sellerId == sellerId })) { context.delete(item) }
         for event in fetchAll(FetchDescriptor<InventoryEventRecord>(predicate: #Predicate { $0.sellerId == sellerId })) { context.delete(event) }
-        for mutation in pendingMutations(sellerId: sellerId) { context.delete(mutation) }
+        clearLegacyQueue(sellerId: sellerId)
         current.naturaDirectSince = .now
         current.initialInventoryAt = nil
         if current.localInventoryAdoptedAt == nil { current.localInventoryAdoptedAt = .now }
