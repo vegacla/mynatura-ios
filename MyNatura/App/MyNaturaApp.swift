@@ -4,25 +4,12 @@ import Store
 import SwiftData
 import SwiftUI
 
-/// Punto de entrada: arma dependencias y las inyecta en el entorno. Sin backend ni login (M7).
+/// Punto de entrada: inyecta las dependencias compartidas (`AppDependencies`) en el entorno. Sin backend ni login (M7).
 @main
 struct MyNaturaApp: App {
-    private let container: ModelContainer
-    @State private var profile: AppProfile
-    @State private var store: LocalStore
+    @State private var profile = AppDependencies.profile
+    @State private var store = AppDependencies.store
     @State private var router = AppRouter.shared
-
-    init() {
-        let container: ModelContainer
-        do {
-            container = try PersistenceController.makeContainer()
-        } catch {
-            fatalError("No se pudo abrir la base de datos local: \(error)")
-        }
-        self.container = container
-        _profile = State(initialValue: AppProfile(repository: SessionRepository(context: container.mainContext)))
-        _store = State(initialValue: LocalStore(context: container.mainContext, connectivity: ConnectivityMonitor()))
-    }
 
     var body: some Scene {
         WindowGroup {
@@ -31,6 +18,6 @@ struct MyNaturaApp: App {
                 .environment(store)
                 .environment(router)
         }
-        .modelContainer(container)
+        .modelContainer(AppDependencies.container)
     }
 }
