@@ -1,5 +1,8 @@
 # MyNatura para iOS — Diseño de la app nativa (Swift / SwiftUI)
 
+> **⚠️ Arquitectura vigente (2026-11-27):** se decidió pasar a **app local primero, sin backend propio**. La app habla directo con Natura. Ver `docs/local-first-migration.md` (plan M1–M8, M1–M2 hechas) y `docs/natura-integration.md` (referencia técnica). Lo que este documento diga sobre consumir el backend, sincronizar con él o no guardar la contraseña de Natura queda **obsoleto** y se actualiza en M7.
+
+
 > Documento derivado del análisis completo del repositorio `mynatura` (privado: PWA Vue 3 + backend Fastify/PostgreSQL).
 > Las rutas `docs/…`, `backend/…` y `frontend/…` citadas aquí se refieren a ese repositorio.
 > Objetivo: construir la **misma aplicación** como app nativa de iPhone, sin perder ninguna regla de negocio

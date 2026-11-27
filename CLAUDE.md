@@ -1,5 +1,8 @@
 # CLAUDE.md — MyNatura iOS
 
+> **⚠️ Arquitectura vigente (2026-11-27):** se decidió pasar a **app local primero, sin backend propio**. La app habla directo con Natura. Ver `docs/local-first-migration.md` (plan M1–M8, M1–M2 hechas) y `docs/natura-integration.md` (referencia técnica). Lo que este documento diga sobre consumir el backend, sincronizar con él o no guardar la contraseña de Natura queda **obsoleto** y se actualiza en M7.
+
+
 App nativa iOS (Swift 6 / SwiftUI) que replica la PWA de MyNatura (venta e inventario para una persona consultora Natura).
 El **backend** (Fastify + PostgreSQL) vive en el repo privado `mynatura` (local: `../../Node/mynatura`); esta app lo consume por HTTP.
 
