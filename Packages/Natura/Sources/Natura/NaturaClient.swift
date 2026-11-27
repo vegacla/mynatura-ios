@@ -124,9 +124,10 @@ public actor NaturaClient {
         ssoToken = token
 
         // 4. natura-callback de minegocio → wcmn_session (redirecciones a mano).
-        var callback = URLComponents(string: redirectUrl)
-        callback?.queryItems = (callback?.queryItems ?? []) + [URLQueryItem(name: "sso_token", value: token)]
-        guard var next = callback?.url else { throw NaturaError.unexpected("callback inválido") }
+        guard var callback = URLComponents(string: redirectUrl) else { throw NaturaError.unexpected("callback inválido") }
+        let existingItems = callback.queryItems ?? []
+        callback.queryItems = existingItems + [URLQueryItem(name: "sso_token", value: token)]
+        guard var next = callback.url else { throw NaturaError.unexpected("callback inválido") }
         for _ in 0..<8 {
             let (_, hop) = try await send(URLRequest(url: next), step: "natura-callback")
             guard (300..<400).contains(hop.statusCode), let location = hop.value(forHTTPHeaderField: "Location"),
