@@ -11,6 +11,9 @@ struct OrderDraftTests {
             == "https://cl.natura.digital-catalogue.com/consultoria/cl/2027/01/revista/ciclo-01/view/index.html?utm_term=web")
         #expect(NaturaMagazine.pdfURL(cycleCode: 202619)?.absoluteString.hasSuffix("/ciclo-19/view/common/data/catalogue.pdf") == true)
         #expect(NaturaMagazine.viewerURL(cycleCode: 19, customerCode: "1") == nil)
+        #expect(NaturaMagazine.whatsAppURL(phone: "+56 9 1111 2222", text: "hola")?.absoluteString == "https://wa.me/56911112222?text=hola")
+        #expect(NaturaMagazine.whatsAppURL(phone: "9 1111 2222", text: "a")?.absoluteString.hasPrefix("https://wa.me/56911112222") == true)
+        #expect(NaturaMagazine.whatsAppURL(phone: "123", text: "a") == nil)
     }
 
     @Test func suggestionsSubtractStockAndKeepCustomers() {

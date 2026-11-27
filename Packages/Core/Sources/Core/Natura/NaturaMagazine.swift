@@ -27,6 +27,17 @@ public enum NaturaMagazine {
         return greeting + "Te comparto la revista Natura del ciclo \(cycleCode % 100): \(url.absoluteString)\nResponde con los códigos que quieres y te los encargo."
     }
 
+    /// Enlace de WhatsApp a un número chileno con el mensaje ya escrito (`wa.me`). nil si el número no sirve.
+    public static func whatsAppURL(phone: String, text: String) -> URL? {
+        var digits = phone.filter(\.isASCIIDigit)
+        if digits.count == 9, digits.hasPrefix("9") { digits = "56" + digits }
+        if digits.count == 8 { digits = "569" + digits }
+        guard digits.count >= 11 else { return nil }
+        var components = URLComponents(string: "https://wa.me/\(digits)")
+        components?.queryItems = [URLQueryItem(name: "text", value: text)]
+        return components?.url
+    }
+
     /// 202619 → ("2026", "19"); 202701 → ("2027", "01").
     static func parts(_ cycleCode: Int) -> (String, String)? {
         let year = cycleCode / 100

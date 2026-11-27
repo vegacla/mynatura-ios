@@ -36,7 +36,7 @@ public struct ReceivingScreen: View {
             .overlay {
                 if orders.isEmpty {
                     ContentUnavailableView("Sin pedidos Natura", systemImage: "tray",
-                                           description: Text("Importa tus pedidos entregados en Ajustes › Sincronización Natura."))
+                                           description: Text("Trae tus pedidos entregados desde Ajustes › Natura."))
                 } else if filtered.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                 }
@@ -44,6 +44,15 @@ public struct ReceivingScreen: View {
             .searchable(text: $searchText, prompt: "Número de pedido")
             .navigationTitle("Recepción")
             .mainToolbar(sellerId: sellerId)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        NaturaOrderDraftEntry(sellerId: sellerId)
+                    } label: {
+                        Label("Armar pedido", systemImage: "cart.badge.plus")
+                    }
+                }
+            }
         }
     }
 }

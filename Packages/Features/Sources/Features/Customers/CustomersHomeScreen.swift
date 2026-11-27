@@ -5,9 +5,9 @@ import SwiftData
 import SwiftUI
 import Store
 
-/// Clientes (§4.7): segmentos Pedidos y Clientes.
+/// Clientes (§4.7): segmentos Pedidos, Clientes y Revista del ciclo (M8).
 public struct CustomersHomeScreen: View {
-    enum Segment: Hashable { case orders, customers }
+    enum Segment: Hashable { case orders, customers, magazine }
     @State private var segment: Segment = .orders
     private let sellerId: String
 
@@ -21,6 +21,7 @@ public struct CustomersHomeScreen: View {
                 Picker("Vista", selection: $segment) {
                     Text("Pedidos").tag(Segment.orders)
                     Text("Clientes").tag(Segment.customers)
+                    Text("Revista").tag(Segment.magazine)
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
@@ -28,6 +29,7 @@ public struct CustomersHomeScreen: View {
                 switch segment {
                 case .orders: CustomerOrdersListView(sellerId: sellerId)
                 case .customers: CustomersListView(sellerId: sellerId)
+                case .magazine: MagazineView(sellerId: sellerId)
                 }
             }
             .navigationTitle("Clientes")
