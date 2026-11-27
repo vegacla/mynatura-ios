@@ -32,7 +32,7 @@ public enum VoiceTraining {
         "otro más", "listo", "eso es todo", "deshacer", "borra eso", "nota", "ciclo actual", "conté siete",
         "son doce unidades", "no hay ninguno", "falta uno", "llegó completo", "¿cuánto vendí hoy?",
         "¿cuánto vendí esta semana?", "¿cuánto vendí este mes?", "¿cuánto vendí la semana pasada?",
-        "¿cuándo cierra el ciclo?", "nueve noventa", "doce mil novecientos noventa", "diez lucas",
+        "¿cuándo cierra el ciclo?", "¿cuánto crédito tengo?", "¿cuándo vence mi pago?", "¿tengo atrasos?", "nueve noventa", "doce mil novecientos noventa", "diez lucas",
     ]
 
     /// Nombre corto: sin palabras genéricas, máx. 3 palabras; nil si no cambia o queda vacío.

@@ -368,12 +368,24 @@ public enum CommandGrammar {
         "a", "dime", "cuentame", "sabes", "mi", "mis", "unidades", "unidad", "todavia", "aun",
     ]
 
+    /// Pagos a Natura: "¿cuándo vence mi pago?", "¿debo algo?", "¿tengo atrasos?".
+    static let paymentWords: Set<String> = [
+        "vence", "vencen", "vencimiento", "vencimientos", "pago", "pagos", "pagar", "debo", "deuda", "deudas",
+        "atraso", "atrasos", "atrasado", "atrasada", "saldo",
+    ]
+
     /// "¿cuánto me queda de Kaiak?" · "¿qué me encargó Juan?" · "¿cuánto vendí esta semana?" · "¿cuándo cierra el ciclo?".
     static func queryCommands(_ segment: [VoiceToken]) -> [VoiceCommand] {
         let words = dropTrailingFillers(Array(segment.drop { $0.isSeparator || leadingFillers.contains($0.text) }))
         guard !words.isEmpty else { return [] }
         let texts = Set(words.map(\.text))
 
+        if texts.contains("credito") || texts.contains("cupo") {
+            return [.query(.credit)]
+        }
+        if !texts.isDisjoint(with: paymentWords) && texts.isDisjoint(with: salesWords) {
+            return [.query(.payments)]
+        }
         if texts.contains("ciclo") && texts.isDisjoint(with: salesWords) {
             return [.query(.cycle)]
         }

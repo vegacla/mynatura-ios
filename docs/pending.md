@@ -83,6 +83,9 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 
 ## 2. Pedido a Natura (`natura-order-placement.md`)
 
+- **M8 en curso (2026-11-27):** hecho en `Core`: URL de la revista (`NaturaMagazine`) y reglas del borrador (`OrderDraftRules`: sugerencias desde encargos confirmados − stock, puntos estimados, tope, qué bajar primero, lista para compartir), con tests. Hecho en `Persistence`: modelo `NaturaOrderDraft` (también en el respaldo). **Falta:** acciones en `LocalStore` (crear borrador del ciclo, actualizar desde encargos, agregar ofertas o reposición, tope de puntos) y pantallas: Clientes › Revista (abrir y compartir el link oficial, "Mi selección" en PDF) y Recepción › Armar pedido del ciclo (barra de puntos y compartir la lista).
+- **Voz:** "¿cuándo cierra el ciclo?" ya usa el ciclo vigente con fecha; nuevas "¿cuánto crédito tengo?" y "¿cuándo vence mi pago?".
+
 - **Captura de endpoints (la hace la consultora):** recorrido de §4.2 en minegocio con DevTools, guardando **Save all as HAR (sanitized)** fuera del repo, y **cancelar el pedido antes de cerrarlo**. De ahí salen rutas y DTOs para §5.2 (solo formas, sin valores). Incluye:
   - paso 0: de dónde sale "Ciclo Actual" en el home (HTML o XHR) y qué muestra el ⓘ;
   - pasos 17–19: ids del API de productos de la revista (`campaign_id`, `brochure_id`, `feed_id`), si trae puntos y ofertas, y el checkout por WhatsApp.

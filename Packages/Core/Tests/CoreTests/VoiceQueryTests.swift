@@ -33,6 +33,11 @@ struct VoiceQueryTests {
     @Test func cycleAndUnknown() {
         #expect(ask("¿Cuándo cierra el ciclo?") == [.query(.cycle)])
         #expect(ask("¿qué ciclo es?") == [.query(.cycle)])
+        #expect(ask("¿Cuánto crédito tengo?") == [.query(.credit)])
+        #expect(ask("¿Cuándo vence mi pago?") == [.query(.payments)])
+        #expect(ask("¿debo algo?") == [.query(.payments)])
+        #expect(ask("¿tengo atrasos?") == [.query(.payments)])
+        #expect(ask("¿cuánto vendí esta semana?") == [.query(.sales(.thisWeek))])
         #expect(ask("¿cuánto?") == [.unrecognized("cuánto")])
     }
 
@@ -94,5 +99,28 @@ struct VoiceQueryTests {
         #expect(VoiceAnswers.sales(period: .today, count: 0, total: .zero).text == "Hoy no registraste ventas.")
         #expect(VoiceAnswers.cycle(latestKnown: 202619).text.hasPrefix("El último ciclo que tengo registrado es el 19 de 2026."))
         #expect(VoiceAnswers.cycle(latestKnown: nil).text.hasPrefix("Todavía no tengo ciclos registrados."))
+    }
+
+    @Test func accountAnswers() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Santiago")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 27, hour: 10))!
+        let end = calendar.date(from: DateComponents(year: 2026, month: 12, day: 9, hour: 12))!
+        let cycle = VoiceAnswers.cycle(current: VoiceCycleFact(code: 202619, start: nil, end: end), latestKnown: nil,
+                                       now: now, calendar: calendar)
+        #expect(cycle.text == "Estamos en el ciclo 19 de 2026. Cierra el miércoles 9 de diciembre: quedan 12 días.")
+
+        let credit = VoiceAnswers.credit(NaturaCredit(availablePesos: 150000, limitPesos: 300000, additionalPesos: nil,
+                                                      isBlocked: false), readAt: now, now: now, calendar: calendar)
+        #expect(credit.text == "Tienes $150.000 de crédito disponible de un límite de $300.000.")
+        #expect(VoiceAnswers.credit(nil, readAt: nil).text.hasPrefix("Todavía no tengo tu crédito"))
+
+        let documents = [
+            NaturaAccountDocument(number: "1", orderNumber: "8", isOpen: true, isOverdue: false, issueDate: nil, dueDate: end,
+                                  originalPesos: 20000, balancePesos: 20000, overdueDays: 0),
+        ]
+        let payments = VoiceAnswers.payments(documents, readAt: now, now: now, calendar: calendar)
+        #expect(payments.text == "El próximo vence el miércoles 9 de diciembre por $20.000. Saldo pendiente: $20.000.")
+        #expect(VoiceAnswers.payments([], readAt: now, now: now, calendar: calendar).text == "No tienes pagos pendientes con Natura.")
     }
 }

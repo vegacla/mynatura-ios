@@ -72,7 +72,7 @@ struct VoiceQuerySheet: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("“¿Cuánto me queda de Kaiak?”")
                         Text("“¿Qué me encargó Juan?”")
-                        Text("“¿Cuánto vendí esta semana?” · “¿Cuándo cierra el ciclo?”")
+                        Text("“¿Cuánto vendí esta semana?” · “¿Cuándo cierra el ciclo?” · “¿Cuánto crédito tengo?” · “¿Cuándo vence mi pago?”")
                     }
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -135,6 +135,12 @@ struct VoiceQuerySheet: View {
             return salesAnswer(period)
         case .cycle:
             return cycleAnswer()
+        case .credit:
+            let snapshot = accountSnapshot()
+            return VoiceAnswers.credit(snapshot?.credit, readAt: snapshot?.creditFetchedAt)
+        case .payments:
+            let snapshot = accountSnapshot()
+            return VoiceAnswers.payments(snapshot?.documents, readAt: snapshot?.documentsFetchedAt)
         }
     }
 
@@ -208,7 +214,16 @@ struct VoiceQuerySheet: View {
         let customerCycles = fetch(FetchDescriptor<CustomerOrder>(predicate: #Predicate { $0.sellerId == id })).map(\.cycle)
         let naturaCycles = fetch(FetchDescriptor<NaturaOrder>(predicate: #Predicate { $0.sellerId == id })).map(\.cycle)
         let latest = (customerCycles + naturaCycles).filter { $0 >= 10_000 }.max()
-        return VoiceAnswers.cycle(latestKnown: latest)
+        let settings = fetch(FetchDescriptor<SellerSettings>(predicate: #Predicate { $0.sellerId == id })).first
+        let current = settings?.currentCycleCode.map {
+            VoiceCycleFact(code: $0, start: settings?.currentCycleStart, end: settings?.currentCycleEnd)
+        }
+        return VoiceAnswers.cycle(current: current, latestKnown: latest)
+    }
+
+    private func accountSnapshot() -> NaturaAccountSnapshot? {
+        let id = sellerId
+        return fetch(FetchDescriptor<NaturaAccountSnapshot>(predicate: #Predicate { $0.sellerId == id })).first
     }
 
     private func spokenText(_ reference: ProductRef) -> String {

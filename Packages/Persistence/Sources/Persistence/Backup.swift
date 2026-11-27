@@ -23,6 +23,8 @@ public struct BackupFile: Codable, Sendable, Equatable {
     public var naturaOrders: [NaturaOrder]
     public var naturaLines: [NaturaLine]
     public var pricingReasons: [PricingReason]
+    /// Borradores del pedido Natura (desde M8; ausente en respaldos anteriores).
+    public var orderDrafts: [OrderDraft]?
 
     public var counts: BackupCounts {
         BackupCounts(products: products.count, lots: lots.count, sales: sales.count, customers: customers.count,
@@ -202,6 +204,12 @@ extension BackupFile {
         var barcodes: [String]
     }
 
+    public struct OrderDraft: Codable, Sendable, Equatable {
+        var cycle: Int
+        var lines: [OrderDraftLine]
+        var pointsLimit: Int?
+    }
+
     public struct PricingReason: Codable, Sendable, Equatable {
         var code: String
         var label: String
@@ -289,6 +297,10 @@ public enum BackupService {
             },
             pricingReasons: try all(FetchDescriptor<PricingReasonRecord>(sortBy: [SortDescriptor(\.code)])).map {
                 BackupFile.PricingReason(code: $0.code, label: $0.label, categoryRaw: $0.categoryRaw)
+            },
+            orderDrafts: try all(FetchDescriptor<NaturaOrderDraft>(predicate: #Predicate { $0.sellerId == sellerId },
+                                                                   sortBy: [SortDescriptor(\.cycle)])).map {
+                BackupFile.OrderDraft(cycle: $0.cycle, lines: $0.lines, pointsLimit: $0.pointsLimit)
             }
         )
     }
@@ -365,6 +377,7 @@ public enum BackupService {
         try context.delete(model: Persistence.Customer.self)
         try context.delete(model: Persistence.CustomerOrder.self)
         try context.delete(model: InventoryLotRecord.self)
+        try context.delete(model: NaturaOrderDraft.self)
         try context.save()
     }
 
@@ -474,6 +487,12 @@ public enum BackupService {
             line.receivedConfirmedAt = item.receivedConfirmedAt
             line.barcodes = item.barcodes
             context.insert(line)
+        }
+        for item in backup.orderDrafts ?? [] {
+            let draft = NaturaOrderDraft(sellerId: sellerId, cycle: item.cycle)
+            draft.lines = item.lines
+            draft.pointsLimit = item.pointsLimit
+            context.insert(draft)
         }
         for item in backup.pricingReasons {
             guard let category = PricingReasonCategory(rawValue: item.categoryRaw) else { continue }
