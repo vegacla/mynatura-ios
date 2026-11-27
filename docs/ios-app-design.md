@@ -1,6 +1,6 @@
 # MyNatura para iOS — Diseño de la app nativa (Swift / SwiftUI)
 
-> **⚠️ Arquitectura vigente (2026-11-27):** se decidió pasar a **app local primero, sin backend propio**. La app habla directo con Natura. Ver `docs/local-first-migration.md` (plan M1–M8, M1–M2 hechas) y `docs/natura-integration.md` (referencia técnica). Lo que este documento diga sobre consumir el backend, sincronizar con él o no guardar la contraseña de Natura queda **obsoleto** y se actualiza en M7.
+> **⚠️ Arquitectura vigente (desde M7, 2026-11-27): app local primero, sin backend propio.** El iPhone guarda todos los datos (SwiftData) y habla directo con Natura. Referencias: `docs/local-first-migration.md` (plan M1–M8 y su §3 de arquitectura) y `docs/natura-integration.md`. Las secciones que hablan del backend (§2 decisión, §4.1 login, §7 sync, §8 `APIClient`, §9 backend, §13.5) quedan como **historia**; cada una lo indica.
 
 
 > Documento derivado del análisis completo del repositorio `mynatura` (privado: PWA Vue 3 + backend Fastify/PostgreSQL).
@@ -26,16 +26,19 @@ App de trabajo diario para **una persona consultora Natura** (una cuenta = un ne
 
 | Principio | Consecuencia en iOS |
 |---|---|
-| Natura es la verdad externa (pedidos, SKU, precios sugeridos) | La app no inventa catálogo; solo consume lo que importa el backend. |
+| Natura es la verdad externa (pedidos, SKU, precios sugeridos) | La app no inventa catálogo: se arma con los pedidos y el catálogo del ciclo, importados directo de Natura. |
 | El conteo físico es la verdad operativa | La conciliación es un evento propio; nunca se pisa el historial. |
 | Catálogo restringido por cuenta de vendedor | Se muestra `sellerProduct`, nunca el maestro completo. |
-| Seguridad en backend | Credenciales Natura **nunca** se guardan en el dispositivo (ni Keychain). Se envían una vez al backend para importar. |
-| Offline‑first en UX, backend‑first en consolidación | SwiftData es la fuente de la UI; el backend consolida y valida. |
+| Credenciales protegidas | La contraseña de Natura se guarda, si la consultora quiere, solo en el Keychain de este iPhone, protegida con Touch ID (M5). Nunca va en el respaldo. |
+| Local primero | SwiftData es la fuente de verdad; lo de Natura se trae bajo demanda y se guarda con fecha de lectura. Respaldo JSON (M5). |
 | UI en español, código en inglés | `Localizable.xcstrings` con `es-CL` como idioma base. |
 
 ---
 
 ## 2. Decisión de arquitectura
+
+> **Obsoleto desde M7 (2026-11-27):** la decisión vigente es la app local primero, sin backend (`local-first-migration.md` §1 y §3).
+
 
 ### Recomendación: **cliente nativo SwiftUI + mismo backend**
 
@@ -120,6 +123,9 @@ El **indicador de conectividad/sync** (En línea · Pendiente sync · Sin conexi
 ## 4. Pantallas (paridad funcional)
 
 ### 4.1 Login
+
+> **Obsoleto desde M7 (2026-11-27):** no hay login a la app. Abre directo con un perfil local; "Borrar datos del iPhone" en Ajustes reemplaza al cierre de sesión.
+
 - Código cliente + contraseña de **la app** (no de Natura). `POST /api/auth/login`.
 - Restaura sesión al abrir (`GET /api/auth/me`); si no hay red, usa el `SessionSummary` cacheado en SwiftData para entrar en modo offline.
 - Logout: limpia carro, cookies y datos locales de esa cuenta.
@@ -283,6 +289,9 @@ Todo se filtra por `sellerId` (multi‑sesión segura en el mismo dispositivo). 
 
 ## 7. Motor de sincronización (paquete `Sync`)
 
+> **Obsoleto desde M7 (2026-11-27):** no hay sincronización. El paquete `Sync` pasó a ser `Store` (`LocalStore`), que escribe directo en SwiftData; se quitaron la cola, el push/pull y la pastilla de sync. `PendingMutation` y `DatasetSyncState` siguen en el esquema sin uso, para no forzar una migración.
+
+
 ### 7.1 Tipos de mutación (mismos que la PWA)
 `sale.create`, `inventory.reconciliation.create`, `receiving.line.confirm`, `catalog.barcode.add`, `customer.create`, `customer.update`, `customer-order.create`, `customer-order.update`.
 
@@ -318,6 +327,9 @@ Clientes y pedidos creados offline usan UUID local. Al sincronizar, si el backen
 
 ## 8. Capa de red (paquete `APIClient`)
 
+> **Obsoleto desde M7 (2026-11-27):** el paquete `APIClient` se eliminó. La red es solo con Natura (paquete `Natura`, `docs/natura-integration.md`).
+
+
 ```swift
 protocol APIClient: Sendable {
     func send<R: Decodable>(_ endpoint: Endpoint<R>) async throws(APIError) -> R
@@ -348,6 +360,9 @@ DTOs: `struct`s `Codable, Sendable` espejo de `contracts/*.ts`, con `JSONDecoder
 ---
 
 ## 9. Ajustes necesarios en el backend
+
+> **Obsoleto desde M7 (2026-11-27):** el backend se retira; el repo `mynatura` queda como referencia.
+
 
 Hallazgos del análisis que conviene resolver antes (o en paralelo) para que la app nativa sincronice sin fricción:
 
@@ -551,6 +566,9 @@ No se necesita ningún certificado ni secreto en GitHub: Sideloadly firma localm
 - Como la app iOS ya vive en un repo propio, se puede publicar en GitHub como **repo público**, donde los runners estándar son gratis sin límite. Implica exponer el código del cliente (no contiene secretos; la integración Natura sigue en el backend privado). Si se prefiere privado, aplican los límites de minutos.
 
 ### 13.5 Conectar el iPhone al backend de desarrollo
+
+> **Obsoleto desde M7 (2026-11-27):** ya no hay backend al que conectarse.
+
 
 - **Opción simple (misma Wi‑Fi):** backend nativo en el PC (`pnpm --dir backend dev`, PostgreSQL de Windows; ver README del repo `mynatura`), la app apunta a `http://<IP-LAN-del-PC>:<puerto>`. Requiere en `Info.plist`: `NSAppTransportSecurity › NSAllowsLocalNetworking = YES` y `NSLocalNetworkUsageDescription`; abrir el puerto en el firewall de Windows y configurar CORS/cookies del backend para ese origen.
 - **Opción túnel (fuera de casa):** `cloudflared tunnel` o similar → URL HTTPS pública temporal; sin excepciones de ATS.

@@ -1,6 +1,6 @@
 # Plan — App iOS local primero, sin backend propio
 
-> **Estado:** decisión tomada (2026-11-26). **M1, M2, M3, M5 y M6 implementadas** (sin probar en iPhone); **M4 descartada** (el Excel del pedido la reemplaza); M7–M8 pendientes.
+> **Estado:** decisión tomada (2026-11-26). **M1–M3 y M5–M7 implementadas** (sin probar en iPhone); **M4 descartada** (el Excel del pedido la reemplaza); M8 pendiente.
 > **Decisión:** la app iOS guarda **todos los datos de la consultora en el iPhone** (fuente de verdad, offline first) y habla **directo con Natura** cuando hay conexión. Se deja de usar el backend propio (Fastify + PostgreSQL) y la PWA.
 > Al terminar, actualizar `CLAUDE.md` y `ios-app-design.md` (§7 sync y §8 endpoints quedan obsoletos).
 
@@ -255,7 +255,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 | M4 ✖ | OCR local | **Descartada** (2026-11-27): la boleta trae lo mismo que el Excel del pedido, que la app baja sola al importar. Ver §8.3 |
 | M5 ✅ | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
 | M6 ✅ | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
-| M7 | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; se archiva el repo `mynatura`; se actualizan `CLAUDE.md` y `ios-app-design.md` |
+| M7 ✅ | Retiro | Se quitan `SyncEngine`, `APIClient` al backend, login a la app y pastilla de sync; se archiva el repo `mynatura`; se actualizan `CLAUDE.md` y `ios-app-design.md` |
 | M8 | Pedido Natura (después) | `natura-order-placement.md` con el flujo GSP, directo desde la app |
 
 ---
@@ -348,6 +348,22 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
   - **Ofertas del ciclo:** productos del ciclo vigente con descuento, promoción o regalo, por categoría, con buscador, precio de compra (y el normal), de venta y puntos.
 - **Fuera de M6** (quedan para el Asistente, U5–U6): respuestas por voz ("¿cuánto crédito tengo?", "¿cuándo vence mi pago?") y búsqueda en la revista.
 - **Por verificar en el iPhone:** los valores reales de `mis-cuentas` (si `isOverdue` y `overdueDays` coinciden), el crédito en `authCommercialInfo` y que la consulta de `cardSection` con los campos de oferta no sea rechazada.
+
+## 8.6 Implementación M7
+
+- **Sin backend:** se eliminó el paquete `APIClient` y, del store, el push, el pull, la cola de mutaciones y la revisión de ventas fallidas.
+- **`Sync` → `Store`:** `SyncEngine` pasó a llamarse `LocalStore`; solo escribe en SwiftData e importa desde Natura.
+- **Sin login a la app:**
+  - abre directo con un **perfil local** (`AppProfile`, sobre `SessionSummary`). En instalaciones anteriores conserva el `sellerId` del backend, así no se pierden datos; en una instalación nueva genera uno (`local-…`);
+  - el código de consultora se recuerda al importar desde Natura;
+  - "Borrar datos del iPhone" (Ajustes) reemplaza al cierre de sesión: borra todo y la contraseña guardada.
+- **Una vez por instalación** (`finishLocalMigrationIfNeeded`): descarta la cola antigua y marca como sincronizado lo que quedó pendiente.
+- **Sin pastilla de sync** ni íconos de "sin sincronizar"; la toolbar deja solo la consulta por voz. Se quitaron los "deslizar para actualizar", que bajaban del backend.
+- **Ajustes:** consultora, método de costeo, Natura (importación, cuenta, ofertas), respaldo, reportes, borrar datos y diagnóstico. Diagnóstico ya no tiene servidor ni cookie.
+- **Info.plist:** sin red local ni ATS, sin refresco en segundo plano (`BGTaskScheduler`) y sin prellenado de login.
+- **Quedan sin uso**, para no forzar una migración de SwiftData: los modelos `PendingMutation` y `DatasetSyncState`, los campos `syncState` y los de OCR. Se pueden quitar más adelante con un esquema versionado.
+- **Docs:** `CLAUDE.md`, `README.md` e `ios-app-design.md` (secciones de backend y sync marcadas como obsoletas).
+- **Pendiente con confirmación de la dueña del repo:** archivar el repo `mynatura` en GitHub.
 
 ## 9. Riesgos
 
