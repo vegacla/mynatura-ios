@@ -99,7 +99,7 @@ Columna **Red**: 🔌 requiere conexión; vacío = funciona offline.
 | Historial de compras y total del periodo | "¿cuánto me ha comprado Ana?" | 🆕 local (`LocalSale.customerId`) | |
 | **Enviar revista** del ciclo por WhatsApp | "envíale la revista a Ana" | 🆕 (link oficial con `id_consultora`; `wa.me` con su teléfono) | 🔌 |
 | Llamar / escribir por WhatsApp | "llama a Ana" | 🆕 (`tel:` / `wa.me`) | |
-| Recordatorio de cobro o de entrega (texto armado para WhatsApp) | "recuérdale a Ana que me debe" | 🆕 (requiere registrar deudas de clientes: hoy no existe) | |
+| Recordatorio de cobro (texto armado para WhatsApp) | "recuérdale a Ana que me debe" | ✅ con ventas fiadas y abonos (ficha del cliente, Por cobrar, voz) | |
 
 ### 4.3 Pedidos de clientes
 
@@ -314,5 +314,5 @@ Core (solo Foundation, tests en Linux)
 
 1. ~~¿Se puede entrar a GSP sin navegador?~~ **Sí** (§6.2): con el `sso_token`. Crédito, ciclo con fechas, ofertas y carro quedan al alcance del backend.
 2. ¿`mis-cuentas` con qué `state` muestra solo lo pendiente? (Se vio el parámetro, no sus valores posibles.)
-3. ¿Se quiere registrar **deudas de clientes** (fiado) en la app? Habilita "recordatorio de cobro" (§4.2).
+3. ~~¿Registrar deudas de clientes (fiado)?~~ **Sí** (2026-11-27): ventas fiadas, abonos y recordatorio de cobro.
 4. ¿El Asistente reemplaza a las hojas actuales, o conviven como atajos dentro de cada pantalla?
