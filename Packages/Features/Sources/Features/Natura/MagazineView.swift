@@ -30,6 +30,11 @@ struct MagazineView: View {
                     if let pdf = NaturaMagazine.pdfURL(cycleCode: cycle) {
                         Link(destination: pdf) { Label("Revista completa en PDF (~46 MB)", systemImage: "doc.richtext") }
                     }
+                    NavigationLink {
+                        SelectionPDFScreen(sellerId: sellerId, cycle: cycle)
+                    } label: {
+                        Label("Mi selección del ciclo (PDF)", systemImage: "checklist")
+                    }
                 } header: {
                     Text("Revista · \(CycleCode.label(cycle))")
                 } footer: {
