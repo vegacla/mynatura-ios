@@ -197,6 +197,32 @@ Sin script de exportación.
 
 **Nota sobre vender la app a otras consultoras** (idea mencionada, no en curso): el modelo local primero **no lo impide**, porque cada usuaria tendría sus datos en su iPhone, sin servidor que mantener. Requeriría cuenta de desarrollador de pago (App Store) y revisar los términos de uso de Natura sobre automatizar su sitio. El backend multiusuario que existía era la otra vía; queda archivado como referencia.
 
+## 7.1 Catálogo, historial y stock inicial (decisiones 2026-11-27)
+
+**Sin backend como fuente:** todo lo que tenía salió de Natura, y la app lo trae directo (M3).
+
+**Catálogo: los pedidos mandan.**
+- **No se crean productos a mano.** Se quitan:
+  - el "+" de Productos;
+  - "Crear producto" en la foto;
+  - la creación rápida en el pedido de cliente.
+- El catálogo se arma de dos fuentes, **sin repetir** (clave: código Natura):
+  1. **Mis pedidos** (todos los entregados, históricos y nuevos): producto, costo pagado y lotes.
+  2. **El catálogo del ciclo actual** (GSP `cardSection`): lo que la plataforma muestra este ciclo, con **categoría**, precio de compra y de venta del ciclo, puntos e imagen. Se **trae siempre** al refrescar y se actualiza cada ciclo.
+- **Categorías:** vienen del ciclo actual (`cardSection.categories` y el filtro por categoría). Un producto de mis pedidos que no está en el ciclo actual conserva la última categoría conocida, o "Sin categoría".
+- **Producto del ciclo que nunca pedí:** está en el catálogo (para buscarlo, ofrecerlo y agregarlo a pedidos de clientes) pero **sin stock**, y no se puede vender hasta que llegue en un pedido.
+
+**Stock inicial: "Agregar inventario actual".**
+1. Al importar el historial, cada línea entregada entra como lote **recibido** con su costo pagado. El stock teórico queda en **todo lo comprado**.
+2. Opción **"Agregar inventario actual"**: la consultora ingresa (o escanea) cuánto tiene hoy de cada producto.
+3. **La diferencia** (comprado − contado) se registra como **ventas previas**: salidas que consumen lotes **con FIFO** (la primera vez, sin importar el método elegido). Así lo que queda en stock son los lotes más recientes, con su costo real.
+4. Las ventas previas **no tienen precio conocido**. Quedan como un documento propio ("Ventas previas al uso de la app"), **fuera del reporte de ganancias**, pero visibles en el kardex.
+5. Después de esa primera vez, los conteos son conciliaciones normales (merma según el método).
+
+**Pedidos nuevos** (desde el import siguiente): entran pendientes de recepción, como hoy.
+
+**Consecuencia para M2:** el "saldo inicial" que convertía en lotes el stock bajado del backend queda **desactivado** y se reemplaza por esto en M3.
+
 ## 8. Etapas
 
 Cada etapa deja la app usable. Mientras dure la transición, el backend sigue funcionando hasta M7.
@@ -205,7 +231,7 @@ Cada etapa deja la app usable. Mientras dure la transición, el backend sigue fu
 |---|---|---|
 | M1 ✅ | Reglas de costo | `Core`: lotes con `costSource` (clasificación por valor), FIFO/LIFO/**Mayor precio**, costo de referencia para unidades gratis, costo pendiente, obsequios a terceros como pérdida, reporte de ganancias (§4.6); tests de §4.8 |
 | M2 ✅ | Store local | Acciones (vender, recibir, conciliar, EAN, clientes, pedidos, foto, voz) escriben directo en SwiftData con lotes y costos locales; `SyncEngine` en modo solo lectura (todavía puede bajar datos) |
-| M3 | Natura directo | Paquete `Natura`: login minegocio + import de pedidos entregados (JSON + HTML) + revista; reimportar todo en el iPhone |
+| M3 | Natura directo | Paquete `Natura`: login (minegocio + GSP) + import de **todos** los pedidos entregados (JSON + HTML) como lotes recibidos + catálogo del ciclo actual (`cardSection`, categorías) sin repetir + revista; "Agregar inventario actual" (diferencia = ventas previas, FIFO); sin productos manuales; sin leer el backend |
 | M4 | OCR local | Boleta con Vision; propuestas de cantidad y precio como hoy |
 | M5 | Respaldo y credenciales | Exportar / importar JSON con recordatorio; contraseña de Natura en el Keychain con Touch ID |
 | M6 | Cuenta, ciclo, ofertas | `MinegocioClient.accounts`, `query_cycle`, `GspClient` (ciclo con fechas, crédito, ofertas): etapas U5–U6 del Asistente sin backend |
