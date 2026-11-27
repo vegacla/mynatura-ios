@@ -81,7 +81,7 @@ struct ReceiptOcrTests {
 
     @Test func matchesOrderLinesAndCapsQuantity() {
         let rows = [
-            ReceiptOcrRow(naturaSku: "70983", description: "Kaiak", quantity: 5, priceNormalPesos: nil, priceCyclePesos: 19990,
+            ReceiptOcrRow(naturaSku: "70983", description: "Kaiak", quantity: 3, priceNormalPesos: nil, priceCyclePesos: 19990,
                           priceSalePesos: nil, rawText: "", confidence: 0.9),
             ReceiptOcrRow(naturaSku: "99999", description: "Otro", quantity: 1, priceNormalPesos: nil, priceCyclePesos: 1990,
                           priceSalePesos: nil, rawText: "", confidence: 0.9),
