@@ -48,6 +48,8 @@ Hecho: V1 núcleo · V2 pedido de cliente · V3 recepción, conciliación y modo
 - Pendiente: pronunciaciones propias (`insert(term:)`, X-SAMPA), solo si las pruebas muestran marcas mal reconocidas.
 
 ### V7 — Atajos (hecho, §5.11 del documento de voz)
+- **Respuestas sin abrir la app (2026-11-27):** "Consultar en MyNatura" (Siri pregunta "¿Qué quieres saber?" y responde con los datos del iPhone), "Quién me debe en MyNatura", "Cuándo cierra el ciclo en MyNatura", "Cuánto crédito tengo en MyNatura" y "Cuánto vendí hoy en MyNatura". Solo lectura; lo que cambia datos sigue abriendo la app. Se llegó al máximo de 10 Atajos por app: para agregar otro hay que quitar uno.
+- Verificar en el iPhone: que Siri lea la respuesta sin abrir la app (con la firma de Apple ID gratis) y cómo pronuncia los montos.
 - Verificar en el iPhone que los Atajos funcionan con la firma de Apple ID gratis (Sideloadly).
 - ~~Respaldo con `FoundationModels`~~: **descartado por ahora**. El iPhone de uso es un **SE 3.ª generación** (A15, sin Apple Intelligence), así que el modelo local de Apple no está disponible. Si se quiere interpretación libre, la única vía es un modelo en la nube vía backend: opcional, solo con conexión y enviando el texto dictado (decisión pendiente).
 
