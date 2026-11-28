@@ -147,6 +147,7 @@ private struct SellRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
+            ProductPhoto(product.imageURL, size: 52)
             VStack(alignment: .leading, spacing: 3) {
                 Text(product.name).font(.body.weight(.medium)).lineLimit(2)
                 HStack(spacing: 6) {

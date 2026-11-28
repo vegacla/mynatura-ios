@@ -75,6 +75,14 @@ struct ProductRow: View {
     let stock: StockItem?
 
     var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ProductPhoto(product.imageURL, size: 52)
+            details
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var details: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text(product.name).font(.body.weight(.medium)).lineLimit(2)
@@ -101,7 +109,6 @@ struct ProductRow: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 2)
     }
 }
 

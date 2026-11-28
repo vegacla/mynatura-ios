@@ -115,6 +115,7 @@ struct CustomerDetailScreen: View {
     @Environment(LocalStore.self) private var store
     @Query private var customers: [Customer]
     @Query private var payments: [CustomerPayment]
+    @Query private var products: [CatalogProduct]
     @Query private var orders: [CustomerOrder]
     @Query private var sales: [LocalSale]
     let customerId: String
@@ -127,10 +128,12 @@ struct CustomerDetailScreen: View {
         _orders = Query(filter: #Predicate<CustomerOrder> { $0.customerId == customerId }, sort: \.orderedAt, order: .reverse)
         _sales = Query(filter: #Predicate<LocalSale> { $0.sellerId == sellerId }, sort: \.occurredAt, order: .reverse)
         _payments = Query(filter: #Predicate<CustomerPayment> { $0.customerId == customerId }, sort: \.paidAt, order: .reverse)
+        _products = Query(filter: #Predicate<CatalogProduct> { $0.sellerId == sellerId })
     }
 
     var body: some View {
         if let customer = customers.first {
+            let imageURLs = SaleRow.imageURLs(products)
             let customerSales = sales.filter {
                 $0.customerId == customer.id || Normalize.customerName($0.customerName ?? "") == customer.normalizedName
             }
@@ -161,7 +164,7 @@ struct CustomerDetailScreen: View {
                 Section("Compras (\(customerSales.count)) · \(customerSales.reduce(Money.zero) { $0 + $1.total }.formatted)") {
                     if customerSales.isEmpty { Text("Sin compras registradas").foregroundStyle(.secondary) }
                     ForEach(customerSales) { sale in
-                        SaleRow(sale: sale, reasonLabels: [:], sellerId: sellerId)
+                        SaleRow(sale: sale, reasonLabels: [:], imageURLs: imageURLs, sellerId: sellerId)
                     }
                 }
             }

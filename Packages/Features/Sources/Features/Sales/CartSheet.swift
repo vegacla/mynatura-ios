@@ -165,9 +165,12 @@ private struct CartLineEditor: View {
     var body: some View {
         let eligible = CartRules.eligibleReasons(reasons, finalPrice: line.finalPrice, suggested: product.lastSuggestedSale)
         Section {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(product.name).font(.headline)
-                Text("SKU \(product.naturaSku) · \(available) disp.").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                ProductPhoto(product.imageURL, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(product.name).font(.headline)
+                    Text("SKU \(product.naturaSku) · \(available) disp.").font(.caption).foregroundStyle(.secondary)
+                }
             }
             QuantityStepper("Cantidad", value: $line.quantity, in: 1...max(available, 1))
             LabeledContent("Precio final") {

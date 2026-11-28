@@ -26,6 +26,11 @@ struct ProductDetailScreen: View {
         if let product = products.first {
             List {
                 Section {
+                    if ProductImageCache.url(product.imageURL) != nil {
+                        ProductPhoto(product.imageURL, size: 220)
+                            .frame(maxWidth: .infinity)
+                            .listRowBackground(Color.white)
+                    }
                     VStack(alignment: .leading, spacing: 6) {
                         Text(product.name).font(.headline)
                         HStack(spacing: 6) {
