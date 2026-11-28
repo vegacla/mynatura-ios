@@ -47,6 +47,122 @@ struct ProductPhoto: View {
     }
 }
 
+/// Foto que se abre a pantalla completa al tocarla, con zoom (pellizcar o doble toque).
+struct ZoomableProductPhoto: View {
+    let urlString: String?
+    let size: CGFloat
+    @State private var showing = false
+
+    init(_ urlString: String?, size: CGFloat) {
+        self.urlString = urlString
+        self.size = size
+    }
+
+    var body: some View {
+        Button { showing = true } label: { ProductPhoto(urlString, size: size) }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ver foto ampliada")
+            .fullScreenCover(isPresented: $showing) { ProductPhotoViewer(urlString: urlString) }
+    }
+}
+
+/// Visor a pantalla completa: la foto en mayor resolución, pellizcar para acercar, doble toque para alternar.
+struct ProductPhotoViewer: View {
+    let urlString: String?
+    @Environment(\.dismiss) private var dismiss
+    @State private var image: UIImage?
+    @State private var failed = false
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.white.ignoresSafeArea()
+            if let image {
+                ZoomableImage(image: image).ignoresSafeArea()
+            } else if failed {
+                ContentUnavailableView("Sin foto", systemImage: "photo",
+                                       description: Text("No se pudo descargar la foto. Revisa tu conexión."))
+            } else {
+                ProgressView().tint(.gray)
+            }
+            Button { dismiss() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 32))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, .black.opacity(0.55))
+            }
+            .padding()
+            .accessibilityLabel("Cerrar")
+        }
+        .environment(\.colorScheme, .light)
+        .task {
+            guard let url = ProductImageCache.url(urlString) else { failed = true; return }
+            if let cached = ProductImageCache.shared.cached(url, pixels: Self.pixels) {
+                image = cached
+            } else {
+                image = await ProductImageCache.shared.image(url, pixels: Self.pixels)
+            }
+            failed = image == nil
+        }
+    }
+
+    /// Resolución del visor (no se agranda si la original es menor).
+    private static let pixels = 2048
+}
+
+private struct ZoomableImage: UIViewRepresentable {
+    let image: UIImage
+
+    func makeUIView(context: Context) -> ZoomingImageView { ZoomingImageView(image: image) }
+    func updateUIView(_ view: ZoomingImageView, context: Context) {}
+}
+
+/// UIScrollView con zoom nativo (pellizcar, arrastrar con inercia, doble toque).
+final class ZoomingImageView: UIScrollView, UIScrollViewDelegate {
+    private let imageView: UIImageView
+
+    init(image: UIImage) {
+        imageView = UIImageView(image: image)
+        super.init(frame: .zero)
+        imageView.contentMode = .scaleAspectFit
+        addSubview(imageView)
+        delegate = self
+        minimumZoomScale = 1
+        maximumZoomScale = 5
+        bouncesZoom = true
+        showsHorizontalScrollIndicator = false
+        showsVerticalScrollIndicator = false
+        contentInsetAdjustmentBehavior = .never
+        backgroundColor = .white
+        let doubleTap = UITapGestureRecognizer(target: self, action: #selector(toggleZoom(_:)))
+        doubleTap.numberOfTapsRequired = 2
+        addGestureRecognizer(doubleTap)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) no se usa") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if zoomScale == minimumZoomScale {
+            imageView.frame = bounds
+            contentSize = bounds.size
+        }
+    }
+
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { imageView }
+
+    @objc private func toggleZoom(_ gesture: UITapGestureRecognizer) {
+        if zoomScale > minimumZoomScale {
+            setZoomScale(minimumZoomScale, animated: true)
+        } else {
+            let point = gesture.location(in: imageView)
+            let scale: CGFloat = 2.5
+            let size = CGSize(width: bounds.width / scale, height: bounds.height / scale)
+            zoom(to: CGRect(x: point.x - size.width / 2, y: point.y - size.height / 2,
+                            width: size.width, height: size.height), animated: true)
+        }
+    }
+}
+
 /// Descarga y reduce las fotos de producto; caché en memoria (por tamaño) y en disco (URLCache).
 @MainActor
 final class ProductImageCache {

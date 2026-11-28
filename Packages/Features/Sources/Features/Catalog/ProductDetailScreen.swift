@@ -27,7 +27,7 @@ struct ProductDetailScreen: View {
             List {
                 Section {
                     if ProductImageCache.url(product.imageURL) != nil {
-                        ProductPhoto(product.imageURL, size: 220)
+                        ZoomableProductPhoto(product.imageURL, size: 220)
                             .frame(maxWidth: .infinity)
                             .listRowBackground(Color.white)
                     }
