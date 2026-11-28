@@ -66,6 +66,8 @@ struct CustomerForm: View {
     @Environment(LocalStore.self) private var store
     let sellerId: String
     let customer: Customer?
+    /// Nombre inicial de un cliente nuevo (p. ej. lo buscado en el selector).
+    var initialName: String = ""
     let onSaved: (String) -> Void
     @State private var name = ""
     @State private var rut = ""
@@ -89,7 +91,10 @@ struct CustomerForm: View {
             }
         }
         .onAppear {
-            guard let customer else { return }
+            guard let customer else {
+                if name.isEmpty { name = initialName }
+                return
+            }
             name = customer.displayName
             rut = customer.rut ?? ""
             phone = customer.phone ?? ""
@@ -180,11 +185,15 @@ struct CustomerDetailScreen: View {
 /// Selector de cliente para el carro (opcional).
 struct CustomerPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
     @Query private var customers: [Customer]
     @State private var searchText = ""
+    @State private var creating = false
+    let sellerId: String
     let onPick: (Customer?) -> Void
 
     init(sellerId: String, onPick: @escaping (Customer?) -> Void) {
+        self.sellerId = sellerId
         self.onPick = onPick
         _customers = Query(filter: #Predicate<Customer> { $0.sellerId == sellerId }, sort: \.displayName)
     }
@@ -192,13 +201,31 @@ struct CustomerPickerSheet: View {
     var body: some View {
         NavigationStack {
             let query = Normalize.customerName(searchText)
+            let typed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             List {
-                Button("Sin cliente") { onPick(nil); dismiss() }
-                ForEach(customers.filter { query.isEmpty || $0.normalizedName.contains(query) }) { customer in
-                    Button(customer.displayName) { onPick(customer); dismiss() }
+                Section {
+                    Button {
+                        creating = true
+                    } label: {
+                        Label(typed.isEmpty ? "Nuevo cliente" : "Nuevo cliente: “\(typed)”", systemImage: "person.badge.plus")
+                    }
+                    Button("Sin cliente") { onPick(nil); dismiss() }
+                }
+                Section {
+                    ForEach(customers.filter { query.isEmpty || $0.normalizedName.contains(query) }) { customer in
+                        Button(customer.displayName) { onPick(customer); dismiss() }
+                    }
                 }
             }
             .searchable(text: $searchText, prompt: "Buscar cliente")
+            .navigationDestination(isPresented: $creating) {
+                CustomerForm(sellerId: sellerId, customer: nil, initialName: typed) { id in
+                    let created = try? context.fetch(FetchDescriptor<Customer>(predicate: #Predicate { $0.id == id })).first
+                    onPick(created)
+                    dismiss()
+                }
+                .navigationTitle("Nuevo cliente")
+            }
             .navigationTitle("Cliente")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } } }
